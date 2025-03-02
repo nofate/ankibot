@@ -2,13 +2,17 @@ import anthropic
 import os
 from dotenv import load_dotenv
 from dataclasses import dataclass
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 import genanki
 import random
 from pathlib import Path
+import boto3
+import hashlib
+import time
 
 # Constants
 ANKI_OUTPUT_DIR = Path("anki")
+AUDIO_OUTPUT_DIR = ANKI_OUTPUT_DIR / "media"
 ANKI_MODEL_ID = 1676138610  # Random but fixed number for consistent model ID
 
 @dataclass
@@ -16,6 +20,8 @@ class LanguageEntry:
     query: str
     definition: str
     examples: List[Dict[str, str]]  # List of dicts with language codes as keys
+    audio_file: Optional[str] = None
+    example_audio_files: List[Optional[str]] = None
 
 def parse_response(response: str) -> Tuple[str, List[Dict[str, str]]]:
     """
@@ -80,12 +86,21 @@ def get_language_entry(query: str) -> LanguageEntry:
     response = message.content[0].text
     definition, examples = parse_response(response)
     
-    # TODO: Parse the response to extract definition and examples
-    # For now, returning with raw response as definition
+    # Get audio for the query word
+    audio_file = get_audio(query)
+    
+    # Get audio for each example
+    example_audio_files = []
+    for example in examples:
+        example_audio_files.append(get_audio(example['de']))
+        time.sleep(1)
+    
     return LanguageEntry(
         query=query,
         definition=definition,
-        examples=examples
+        examples=examples,
+        audio_file=audio_file,
+        example_audio_files=example_audio_files
     )
 
 def create_anki_deck(entries: List[LanguageEntry], deck_name: str = "German B2 Vocabulary") -> None:
@@ -107,12 +122,21 @@ def create_anki_deck(entries: List[LanguageEntry], deck_name: str = "German B2 V
             {'name': 'German'},
             {'name': 'Definition'},
             {'name': 'Examples'},
+            {'name': 'Audio'}
         ],
         templates=[
             {
                 'name': 'German -> Definition + Examples',
-                'qfmt': '{{German}}',
+                'qfmt': '''
+                    {{German}}
+                    <br>
+                    {{#Audio}}
+                    [sound:{{Audio}}]
+                    {{/Audio}}
+                ''',
                 'afmt': '''
+                    {{FrontSide}}
+                    <hr>
                     <div class="definition">{{Definition}}</div>
                     <hr>
                     <div class="examples">{{Examples}}</div>
@@ -140,28 +164,87 @@ def create_anki_deck(entries: List[LanguageEntry], deck_name: str = "German B2 V
     # Create a deck
     deck_id = random.randrange(1 << 30, 1 << 31)
     deck = genanki.Deck(deck_id, deck_name)
-
+    
+    # List to store all media files
+    media_files = []
+    
     # Add notes to the deck
     for entry in entries:
-        # Format examples as HTML
-        examples_html = '<br>'.join(
-            f"{ex['de']}<br><i>{ex['ru']}</i>" 
-            for ex in entry.examples
-        )
+        # Add main word audio to media files if it exists
+        if entry.audio_file:
+            media_files.append(str(AUDIO_OUTPUT_DIR / entry.audio_file))
+        
+        # Format examples as HTML with audio
+        examples_html = []
+        for i, ex in enumerate(entry.examples):
+            example_html = f"{ex['de']}"
+            if entry.example_audio_files[i]:
+                example_html += f" [sound:{entry.example_audio_files[i]}]"
+                media_files.append(str(AUDIO_OUTPUT_DIR / entry.example_audio_files[i]))
+            example_html += f"<br><i>{ex['ru']}</i>"
+            examples_html.append(example_html)
         
         note = genanki.Note(
             model=model,
             fields=[
                 entry.query,
                 entry.definition,
-                examples_html
+                '<br>'.join(examples_html),
+                entry.audio_file or ''
             ]
         )
         deck.add_note(note)
-
-    # Update the save path to use the output directory
+    
+    # Save the deck with media files
     output_path = ANKI_OUTPUT_DIR / f'{deck_name}.apkg'
-    genanki.Package(deck).write_to_file(str(output_path))
+    package = genanki.Package(deck)
+    package.media_files = media_files
+    package.write_to_file(str(output_path))
+
+def get_audio(text: str) -> Optional[str]:
+    """
+    Gets German audio for text using Amazon Polly.
+    
+    Args:
+        text (str): Text to synthesize
+        
+    Returns:
+        Optional[str]: Filename of the generated audio file, or None if failed
+    """
+    # Create output directory if it doesn't exist
+    AUDIO_OUTPUT_DIR.mkdir(exist_ok=True)
+    
+    # Create a unique filename based on the text content
+    filename = hashlib.md5(text.encode('utf-8')).hexdigest() + '.mp3'
+    output_path = AUDIO_OUTPUT_DIR / filename
+    
+    # Skip if file already exists
+    if output_path.exists():
+        return filename
+    
+    try:
+        polly = boto3.client('polly')
+        response = polly.synthesize_speech(
+            Text=text,
+            OutputFormat='mp3',
+            VoiceId='Vicki',  # German female voice
+            LanguageCode='de-DE',
+            Engine='neural'
+        )
+        
+        # Save the audio file
+        if "AudioStream" in response:
+            with open(output_path, 'wb') as file:
+                file.write(response['AudioStream'].read())
+            print(f"✓ Successfully generated audio: {word} - {output_path}")
+            return filename
+            
+    except Exception as e:
+        print(f"⚠️ Error generating audio for '{text}': {str(e)}")
+        print(f"Error Code: {e.response['Error']['Code']}")
+        print(f"Error Message: {e.response['Error']['Message']}")
+        print(f"Request ID: {e.response['ResponseMetadata']['RequestId']}")
+        return None
 
 if __name__ == "__main__":
     # Load environment variables
