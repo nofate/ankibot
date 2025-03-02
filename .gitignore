@@ -24,3 +24,20 @@ wheels/
 
 # Anki
 anki/
+
+# Python package directory
+package/
+
+# Python virtual environment
+venv/
+env/
+.env/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# AWS Lambda deployment packages
+*.zip
