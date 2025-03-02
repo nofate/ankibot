@@ -1,0 +1,6 @@
+anthropic>=0.45.2
+boto3>=1.36.16
+python-dotenv>=1.0.0
+python-telegram-bot==20.8 
+genanki>=0.13.1
+python-dotenv>=1.0.1
