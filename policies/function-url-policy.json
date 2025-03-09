@@ -1,0 +1,16 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": "*",
+            "Action": "lambda:InvokeFunctionUrl",
+            "Resource": "arn:aws:lambda:<region>:<account-id>:function:<function-name>",
+            "Condition": {
+                "StringEquals": {
+                    "lambda:FunctionUrlAuthType": "AWS_IAM"
+                }
+            }
+        }
+    ]
+} 
