@@ -1,55 +1,49 @@
 import anthropic
 import os
 from dotenv import load_dotenv
-from dataclasses import dataclass
 from typing import List, Dict, Tuple, Optional
 import genanki
 import random
 from pathlib import Path
-import boto3
+from datetime import datetime
 import hashlib
 import time
+import boto3  # Direct import
+from core import LanguageEntry, Example  # Only import our classes
 
 # Constants
 ANKI_OUTPUT_DIR = Path("anki")
 AUDIO_OUTPUT_DIR = ANKI_OUTPUT_DIR / "media"
 ANKI_MODEL_ID = 1676138610  # Random but fixed number for consistent model ID
 
-@dataclass
-class LanguageEntry:
-    query: str
-    definition: str
-    examples: List[Dict[str, str]]  # List of dicts with language codes as keys
-    audio_file: Optional[str] = None
-    example_audio_files: List[Optional[str]] = None
-
-def parse_response(response: str) -> Tuple[str, List[Dict[str, str]]]:
+def parse_response(response: str) -> Tuple[str, str, List[Example]]:
     """
-    Parses the Claude response into definition and examples.
+    Parses the Claude response into definition, translation and examples.
     
     Args:
         response (str): Raw response from Claude
         
     Returns:
-        Tuple[str, List[Dict[str, str]]]: Dictionary form and list of examples with language codes
+        Tuple[str, str, List[Example]]: Dictionary form, translation and list of examples
     """
     # Split response into lines and filter out empty lines
     lines = [line.strip() for line in response.split('\n') if line.strip()]
     
-    # First line contains the dictionary form
-    definition = lines[0]
+    # First line contains the dictionary form and translation
+    definition_line = lines[0]
+    definition, translation = definition_line.split('|')
     
     # Remaining lines are examples
     examples = []
     for line in lines[1:]:
         if '|' in line:
-            german, russian = line.split('|')
-            examples.append({
-                'de': german.strip(),
-                'ru': russian.strip()
-            })
+            de, ru = line.split('|')
+            examples.append(Example(
+                de=de.strip(),
+                ru=ru.strip()
+            ))
     
-    return definition, examples
+    return definition.strip(), translation.strip(), examples
 
 def get_language_entry(query: str) -> LanguageEntry:
     """
@@ -66,10 +60,10 @@ def get_language_entry(query: str) -> LanguageEntry:
     )
     
     system_prompt = """You are a german language assistant for a B1 student learning B2 Niveau.
-    Provide 5 different simple usage examples of German Word and a russian Translations.
+    First write a dictionary form of a word and its russian translation separated by |.
+    Then provide 5 different simple usage examples of German Word and their Russian Translations.
     Examples should be short enough. Answer only with a list, without any explanations, sticking to a following format: Example | Translation.
-    Don't use any line numbers.
-    Before examples write a dictionary form of a word if applicable (singular and plural with a definite article for a single noun, main verb forms for a single verb or verb with a preposition"""
+    Don't use any line numbers."""
     
     message = client.messages.create(
         model="claude-3-5-sonnet-20241022",
@@ -84,23 +78,22 @@ def get_language_entry(query: str) -> LanguageEntry:
     )
     
     response = message.content[0].text
-    definition, examples = parse_response(response)
+    definition, translation, examples = parse_response(response)
     
     # Get audio for the query word
     audio_file = get_audio(query)
     
     # Get audio for each example
-    example_audio_files = []
     for example in examples:
-        example_audio_files.append(get_audio(example['de']))
+        example.audio_file = get_audio(example.de)
         time.sleep(1)
     
     return LanguageEntry(
         query=query,
         definition=definition,
+        translation=translation,
         examples=examples,
-        audio_file=audio_file,
-        example_audio_files=example_audio_files
+        audio_file=audio_file
     )
 
 def create_anki_deck(entries: List[LanguageEntry], deck_name: str = "German B2 Vocabulary") -> None:
@@ -176,12 +169,12 @@ def create_anki_deck(entries: List[LanguageEntry], deck_name: str = "German B2 V
         
         # Format examples as HTML with audio
         examples_html = []
-        for i, ex in enumerate(entry.examples):
-            example_html = f"{ex['de']}"
-            if entry.example_audio_files[i]:
-                example_html += f" [sound:{entry.example_audio_files[i]}]"
-                media_files.append(str(AUDIO_OUTPUT_DIR / entry.example_audio_files[i]))
-            example_html += f"<br><i>{ex['ru']}</i>"
+        for ex in entry.examples:
+            example_html = f"{ex.de}"
+            if ex.audio_file:
+                example_html += f" [sound:{ex.audio_file}]"
+                media_files.append(str(AUDIO_OUTPUT_DIR / ex.audio_file))
+            example_html += f"<br><i>{ex.ru}</i>"
             examples_html.append(example_html)
         
         note = genanki.Note(
@@ -236,7 +229,7 @@ def get_audio(text: str) -> Optional[str]:
         if "AudioStream" in response:
             with open(output_path, 'wb') as file:
                 file.write(response['AudioStream'].read())
-            print(f"✓ Successfully generated audio: {word} - {output_path}")
+            print(f"✓ Successfully generated audio: {text} - {output_path}")
             return filename
             
     except Exception as e:
