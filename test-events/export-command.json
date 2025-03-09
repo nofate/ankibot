@@ -1,0 +1,10 @@
+{
+  "version": "2.0",
+  "routeKey": "$default",
+  "rawPath": "/",
+  "headers": {
+    "x-amz-date": "20240101T120000Z",
+    "authorization": "AWS4-HMAC-SHA256 Credential=test/20240101/us-east-1/lambda/aws4_request"
+  },
+  "body": "{\"update_id\":10001,\"message\":{\"message_id\":2,\"from\":{\"id\":123456789,\"is_bot\":false,\"first_name\":\"Test\",\"username\":\"testuser\",\"language_code\":\"en\"},\"chat\":{\"id\":123456789,\"first_name\":\"Test\",\"username\":\"testuser\",\"type\":\"private\"},\"date\":1704110400,\"text\":\"/export\"}}"
+} 
