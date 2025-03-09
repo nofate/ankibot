@@ -8,29 +8,35 @@ from telegram.ext import (
 )
 import json
 import os
+import boto3
+import asyncio
 
 # Get telegram token from environment variable
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
+QUEUE_URL = os.environ.get('QUEUE_URL')
 
-# Create application instance once, outside the handler
-application = Application.builder().token(TELEGRAM_TOKEN).build()
+# Initialize AWS SQS client
+sqs = boto3.client('sqs')
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# Initialize bot and event loop
+bot = Application.builder().token(TELEGRAM_TOKEN).build().bot
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
+
+def help_command(update: Update):
     help_text = """
-Available commands:
-/help - Show this help message
-/export - Export your data
-/list - Show available items
+        Available commands:
+        /help - Show this help message
+        /export - Export your data
+        /list - Show available items
     """
-    await update.message.reply_text(help_text)
+    loop.run_until_complete(update.message.reply_text(help_text))
 
-async def export_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Placeholder for export functionality
-    await update.message.reply_text("Export functionality will be available soon!")
+def export_command(update: Update):
+    loop.run_until_complete(update.message.reply_text("Export functionality will be available soon!"))
 
-async def list_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Show web app button
-    await update.message.reply_text(
+def list_command(update: Update):
+    loop.run_until_complete(update.message.reply_text(
         "Click below to open the list:",
         reply_markup={
             "inline_keyboard": [[{
@@ -38,58 +44,95 @@ async def list_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "web_app": {"url": f"https://example.com"}
             }]]
         }
-    )
+    ))
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Handle regular messages
-    await update.message.reply_text(f"You said: {update.message.text}")
-
-# Initialize handlers once
-application.add_handler(CommandHandler("help", help_command))
-application.add_handler(CommandHandler("export", export_command))
-application.add_handler(CommandHandler("list", list_command))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-# Initialize the application
-import asyncio
-loop = asyncio.get_event_loop()
-loop.run_until_complete(application.initialize())
+def handle_message(update: Update):
+    try:
+        # Prepare message for queue
+        message = {
+            'user_id': update.effective_user.id,
+            'username': update.effective_user.username,
+            'text': update.message.text,
+            'timestamp': update.message.date.isoformat()
+        }
+        
+        # Send to SQS
+        response = sqs.send_message(
+            QueueUrl=QUEUE_URL,
+            MessageBody=json.dumps(message)
+        )
+        
+        # Reply to user
+        loop.run_until_complete(update.message.reply_text(
+            f"Your message has been queued! You said: {update.message.text}"
+        ))
+    except Exception as e:
+        print(f"Error sending to SQS: {str(e)}")
+        loop.run_until_complete(update.message.reply_text(
+            "Sorry, there was an error processing your message."
+        ))
 
 def lambda_handler(event, context):
     """AWS Lambda handler"""
     
     try:
-        # Parse the update - Function URLs have a different event structure
-        if 'body' in event and isinstance(event['body'], str):
-            body = json.loads(event['body'])
+        # Parse the update - Handle both Function URL and API Gateway events
+        if 'body' in event:
+            if isinstance(event['body'], str):
+                body = json.loads(event['body'])
+                print("Parsed body from string:", body)
+            else:
+                body = event['body']  # API Gateway might already parse JSON
+                print("Using pre-parsed body:", body)
         else:
             body = event
+            print("Using event as body:", body)
             
         # Debug logging
-        print("Received body:", body)
+        print("Processing body:", body)
             
         # Ensure we're passing the actual Telegram update object
         if isinstance(body, dict) and 'message' in body:
-            update = Update.de_json(body, application.bot)
+            print("Found message in body")
+            update = Update.de_json(body, bot)
+            
+            # Route to appropriate handler
+            text = update.message.text
+            print(f"Processing message text: {text}")
+            
+            if text.startswith('/help'):
+                help_command(update)
+            elif text.startswith('/export'):
+                export_command(update)
+            elif text.startswith('/list'):
+                list_command(update)
+            else:
+                handle_message(update)
+                
+            return {
+                'statusCode': 200,
+                'headers': {
+                    'Content-Type': 'application/json'
+                },
+                'body': json.dumps({'status': 'OK'})
+            }
         else:
+            print("Invalid body format:", body)
             return {
                 'statusCode': 400,
-                'body': 'Invalid update format'
+                'headers': {
+                    'Content-Type': 'application/json'
+                },
+                'body': json.dumps({'error': 'Invalid update format'})
             }
-        
-        # Process update
-        async def process_update():
-            await application.process_update(update)
             
-        loop.run_until_complete(process_update())
-        
-        return {
-            'statusCode': 200,
-            'body': 'OK'
-        }
     except Exception as e:
-        print("Error:", str(e))  # Debug logging
+        print("Error:", str(e))
+        print("Event that caused error:", event)
         return {
             'statusCode': 500,
-            'body': str(e)
+            'headers': {
+                'Content-Type': 'application/json'
+            },
+            'body': json.dumps({'error': str(e)})
         } 
