@@ -10,6 +10,7 @@ import json
 import os
 import boto3
 import asyncio
+from core import LanguageEntry
 
 # Get telegram token from environment variable
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
@@ -36,15 +37,42 @@ def export_command(update: Update):
     loop.run_until_complete(update.message.reply_text("Export functionality will be available soon!"))
 
 def list_command(update: Update):
-    loop.run_until_complete(update.message.reply_text(
-        "Click below to open the list:",
-        reply_markup={
-            "inline_keyboard": [[{
-                "text": "Open List",
-                "web_app": {"url": f"https://example.com"}
-            }]]
-        }
-    ))
+    """Show all saved German words/phrases"""
+    try:
+        # Get all entries from DynamoDB
+        entries = LanguageEntry.get_table().scan()
+        items = entries.get('Items', [])
+        
+        if not items:
+            loop.run_until_complete(update.message.reply_text(
+                "No entries found in the database yet."
+            ))
+            return
+        
+        # Format the list with query, translation and definition
+        message_lines = []
+        for item in items:
+            message_lines.append(
+                f"• {item['query']}\n"
+                f"  {item['definition']} | {item['translation']}"
+            )
+        
+        # Join all lines and send
+        message = "Saved entries:\n\n" + "\n\n".join(message_lines)
+        
+        # Split message if too long (Telegram has 4096 char limit)
+        if len(message) > 4000:
+            chunks = [message[i:i+4000] for i in range(0, len(message), 4000)]
+            for chunk in chunks:
+                loop.run_until_complete(update.message.reply_text(chunk))
+        else:
+            loop.run_until_complete(update.message.reply_text(message))
+            
+    except Exception as e:
+        print(f"Error in list_command: {str(e)}")
+        loop.run_until_complete(update.message.reply_text(
+            "Sorry, there was an error retrieving the entries."
+        ))
 
 def handle_message(update: Update):
     try:
