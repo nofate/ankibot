@@ -5,8 +5,10 @@ import os
 import boto3
 import hashlib
 import time
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from core import LanguageEntry, Example
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 
 def get_examples_from_claude(query: str) -> Tuple[str, str, List[Tuple[str, str]]]:
@@ -52,41 +54,82 @@ def parse_claude_response(response: str) -> Tuple[str, str, List[Tuple[str, str]
     
     return definition.strip(), translation.strip(), example_pairs
 
-def get_audio(text: str) -> str:
-    """Gets German audio using Amazon Polly"""
+async def get_audio(text: str) -> Optional[str]:
+    """Gets German audio using Amazon Polly and stores in S3 (async)"""
     try:
+        filename = hashlib.md5(text.encode('utf-8')).hexdigest() + '.mp3'
+        s3_key = f"audio/{filename}"
+        
+        # Check if file already exists in S3
+        s3 = boto3.client('s3')
+        try:
+            s3.head_object(Bucket=os.environ['AUDIO_BUCKET'], Key=s3_key)
+            print(f"Audio file already exists: {s3_key}")
+            return filename
+        except:
+            print(f"Generating new audio for: {text}")
+        
+        # Start synthesis task
         polly = boto3.client('polly')
-        response = polly.synthesize_speech(
+        response = polly.start_speech_synthesis_task(
             Text=text,
             OutputFormat='mp3',
             VoiceId='Vicki',
             LanguageCode='de-DE',
-            Engine='neural'
+            Engine='neural',
+            OutputS3BucketName=os.environ['AUDIO_BUCKET'],
+            OutputS3KeyPrefix='audio/'
         )
         
-        if "AudioStream" in response:
-            filename = hashlib.md5(text.encode('utf-8')).hexdigest() + '.mp3'
-            return filename
+        # Poll for completion asynchronously
+        task_id = response['SynthesisTask']['TaskId']
+        while True:
+            status = polly.get_speech_synthesis_task(TaskId=task_id)
+            task_status = status['SynthesisTask']['TaskStatus']
+            
+            if task_status == 'completed':
+                # Get Polly's output file path
+                polly_uri = status['SynthesisTask']['OutputUri']
+                polly_key = polly_uri.split(os.environ['AUDIO_BUCKET'] + '/')[1]
+                
+                # Copy to our desired filename
+                s3.copy_object(
+                    Bucket=os.environ['AUDIO_BUCKET'],
+                    CopySource=f"{os.environ['AUDIO_BUCKET']}/{polly_key}",
+                    Key=s3_key
+                )
+                
+                # Delete original Polly file
+                s3.delete_object(
+                    Bucket=os.environ['AUDIO_BUCKET'],
+                    Key=polly_key
+                )
+                
+                print(f"Generated and renamed audio to: {s3_key}")
+                return filename
+            elif task_status == 'failed':
+                print(f"Failed to generate audio: {status['SynthesisTask']['TaskStatusReason']}")
+                return None
+                
+            await asyncio.sleep(0.5)
             
     except Exception as e:
-        print(f"Error generating audio for '{text}': {str(e)}")
+        print(f"Error generating/storing audio for '{text}': {str(e)}")
         return None
 
-
-def generate_audio_files(query: str, example_texts: List[str]) -> Tuple[str, List[str]]:
-    """Generate audio files for query and examples"""
-    # Get audio for the query word
-    query_audio = get_audio(query)
+async def generate_audio_files(query: str, example_texts: List[str]) -> Tuple[str, List[str]]:
+    """Generate audio files for query and examples in parallel"""
+    # Create tasks for all audio generations
+    tasks = [
+        get_audio(query),  # Query audio
+        *[get_audio(text) for text in example_texts]  # Example audios
+    ]
     
-    # Get audio for each example
-    example_audios = []
-    for text in example_texts:
-        audio = get_audio(text)
-        example_audios.append(audio)
-        time.sleep(1)  # Avoid rate limiting
-        
-    return query_audio, example_audios
-
+    # Wait for all tasks to complete
+    results = await asyncio.gather(*tasks)
+    
+    # First result is query audio, rest are example audios
+    return results[0], results[1:]
 
 def create_language_entry(query: str) -> LanguageEntry:
     """Creates a new LanguageEntry for the given query"""
@@ -99,15 +142,18 @@ def create_language_entry(query: str) -> LanguageEntry:
         for de, ru in example_pairs
     ]
     
-    # # Generate all audio files
-    # query_audio, example_audios = generate_audio_files(
-    #     query=query,
-    #     example_texts=[ex.de for ex in examples]
-    # )
+    # Generate all audio files in parallel
+    loop = asyncio.get_event_loop()
+    query_audio, example_audios = loop.run_until_complete(
+        generate_audio_files(
+            query=query,
+            example_texts=[ex.de for ex in examples]
+        )
+    )
     
-    # # Attach audio files to examples
-    # for example, audio in zip(examples, example_audios):
-    #     example.audio_file = audio
+    # Attach audio files to examples
+    for example, audio in zip(examples, example_audios):
+        example.audio_file = audio
     
     # Create and return the entry
     return LanguageEntry(
@@ -115,10 +161,8 @@ def create_language_entry(query: str) -> LanguageEntry:
         definition=definition,
         translation=translation,
         examples=examples,
-        # audio_file=query_audio
+        audio_file=query_audio
     )
-
-
 
 def lambda_handler(event, context):
     """Process messages from SQS queue"""
