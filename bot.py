@@ -104,37 +104,45 @@ def lambda_handler(event, context):
     """AWS Lambda handler"""
     
     try:
-        # Parse the update - Handle both Function URL and API Gateway events
+        # Parse the update
         if 'body' in event:
             if isinstance(event['body'], str):
                 body = json.loads(event['body'])
-                print("Parsed body from string:", body)
             else:
-                body = event['body']  # API Gateway might already parse JSON
-                print("Using pre-parsed body:", body)
+                body = event['body']
         else:
             body = event
-            print("Using event as body:", body)
             
         # Debug logging
         print("Processing body:", body)
             
         # Ensure we're passing the actual Telegram update object
         if isinstance(body, dict) and 'message' in body:
-            print("Found message in body")
             update = Update.de_json(body, bot)
             
             # Route to appropriate handler
             text = update.message.text
             print(f"Processing message text: {text}")
             
-            if text.startswith('/help'):
-                help_command(update)
-            elif text.startswith('/export'):
-                export_command(update)
-            elif text.startswith('/list'):
-                list_command(update)
+            # Handle known commands only
+            if text.startswith('/'):
+                if text.startswith('/help'):
+                    help_command(update)
+                elif text.startswith('/export'):
+                    export_command(update)
+                elif text.startswith('/list'):
+                    list_command(update)
+                else:
+                    # Unknown command - inform user
+                    loop.run_until_complete(update.message.reply_text(
+                        "Unknown command. Type /help to see available commands."
+                    ))
+                    return {
+                        'statusCode': 200,
+                        'body': json.dumps({'status': 'Unknown command'})
+                    }
             else:
+                # Not a command - process as regular message
                 handle_message(update)
                 
             return {
