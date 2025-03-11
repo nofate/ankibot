@@ -77,14 +77,6 @@ class LanguageEntry:
         table.put_item(Item=self.to_dict())
 
     @classmethod
-    def get_by_id(cls, id: str) -> Optional['LanguageEntry']:
-        """Retrieve an entry by its ID"""
-        table = cls.get_table()
-        response = table.get_item(Key={'id': id})
-        item = response.get('Item')
-        return cls.from_dict(item) if item else None
-
-    @classmethod
     def get_by_query(cls, query: str) -> Optional['LanguageEntry']:
         """Retrieve an entry by its query word"""
         table = cls.get_table()
@@ -93,11 +85,4 @@ class LanguageEntry:
             KeyConditionExpression=Key('query').eq(query)
         )
         items = response.get('Items', [])
-        return cls.from_dict(items[0]) if items else None
-
-    @classmethod
-    def list_entries(cls, limit: int = 100) -> List['LanguageEntry']:
-        """List all entries"""
-        table = cls.get_table()
-        response = table.scan(Limit=limit)
-        return [cls.from_dict(item) for item in response.get('Items', [])] 
+        return cls.from_dict(items[0]) if items else None 
