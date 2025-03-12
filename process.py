@@ -19,8 +19,11 @@ def get_examples_from_claude(query: str) -> Tuple[str, str, List[Tuple[str, str]
     
     system_prompt = """You are a german language assistant for a B1 student learning B2 Niveau.
     First write a dictionary form of a word and its russian translation separated by |.
-    Then provide 5 different simple usage examples of German Word and their Russian Translations.
-    Examples should be short enough. Answer only with a list, without any explanations, sticking to a following format: Example | Translation.
+    If user input is a phrase with multiple words ­— dictionary form for phrases  should be if  possible infinitive with corresponding word order (verb last) and correc t government (case and prepositions).
+    Dictionary form for single nouns should have singular and plural forms with definite article divided by commas.
+    Dictionary form for single  verbs should have infinitive, present 3rd person singular, präteritum and partizip 2nd form with helper verb, divided by commas.
+    Then provide 5 different simple usage examples of German Word and their Russian Translations. 
+    Examples should be short enough. Try to use perfekt and present tenses. Answer only with a list, without any explanations, sticking to a following format: Example | Translation.
     Don't use any line numbers."""
     
     message = client.messages.create(
