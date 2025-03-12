@@ -13,12 +13,125 @@ load_dotenv()
 # Constants
 AUDIO_BUCKET = os.environ.get('AUDIO_BUCKET')
 
-# Card template
-EXAMPLES_TEMPLATE = """
+# Define note model with two card templates
+MODEL = genanki.Model(
+    1607392319,
+    'German Word',
+    fields=[
+        {'name': 'German'},
+        {'name': 'Definition'},
+        {'name': 'Russian'},
+        {'name': 'ExamplesGerman'},
+        {'name': 'ExamplesRussian'},
+        {'name': 'Examples'},
+        {'name': 'Audio'}
+    ],
+    templates=[
+        # Card 1: German -> Russian
+        {
+            'name': 'German -> Russian',
+            'qfmt': '''
+                <div class="german">{{German}}</div>
+                {{Audio}}
+                <div class="examples">
+                {{ExamplesGerman}}
+                </div>
+            ''',
+            'afmt': '''
+                <div class="russian"><i>{{Russian}}</i></div>
+                <hr id="answer">
+                <div class="german">{{German}}</div>
+                <div class="definition">{{Definition}}</div>
+                {{Audio}}
+                <div class="examples">
+                {{Examples}}
+                </div>
+               
+            '''
+        },
+        # Card 2: Russian -> German
+        {
+            'name': 'Russian -> German',
+            'qfmt': '''
+                <div class="russian">{{Russian}}</div>
+                <div class="examples">
+                {{ExamplesRussian}}
+                </div>
+            ''',
+            'afmt': '''
+                <div class="russian">{{Russian}}</div>
+                <hr id="answer">
+                <div class="german"><b>{{German}}</b></div>
+                <div class="definition">{{Definition}}</div>
+                {{Audio}}
+                <div class="examples">
+                {{Examples}}
+                </div>
+            '''
+        }
+    ],
+    css='''
+        .card {
+            font-family: Arial, sans-serif;
+            font-size: 20px;
+            text-align: center;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+        .german {
+            font-weight: bold;
+            font-size: 24px;
+            color: #2c3e50;
+        }
+        .russian {
+            font-weight: bold;
+            font-size: 24px;
+            color: #c0392b;
+        }
+        .definition {
+            margin-top: 10px;
+            color: #7f8c8d;
+        }
+        .examples {
+            text-align: left;
+            margin-top: 15px;
+        }
+        .examples ul {
+            padding-left: 20px;
+        }
+    '''
+)
+
+# Create two templates for examples
+GERMAN_EXAMPLES_TEMPLATE = """
 <ul>
 {% for example in examples %}
     <li>
-        {{ example.de }}<br>
+        {{ example.de }}
+        {% if example.audio_file %}
+        <br>[sound:{{ example.audio_file }}]
+        {% endif %}
+    </li>
+{% endfor %}
+</ul>
+"""
+
+RUSSIAN_EXAMPLES_TEMPLATE = """
+<ul>
+{% for example in examples %}
+    <li>
+        {{ example.ru }}
+    </li>
+{% endfor %}
+</ul>
+"""
+
+FULL_EXAMPLES_TEMPLATE = """
+<ul>
+{% for example in examples %}
+    <li>
+        {{ example.de }}
+        <br>
         {{ example.ru }}
         {% if example.audio_file %}
         <br>[sound:{{ example.audio_file }}]
@@ -28,33 +141,10 @@ EXAMPLES_TEMPLATE = """
 </ul>
 """
 
-# Initialize Jinja2 template
-card_template = Template(EXAMPLES_TEMPLATE)
-
-# Define note model
-MODEL = genanki.Model(
-    1607392319,
-    'German Word',
-    fields=[
-        {'name': 'Word'},
-        {'name': 'Definition'},
-        {'name': 'Translation'},
-        {'name': 'Examples'},
-        {'name': 'Audio'}
-    ],
-    templates=[{
-        'name': 'Card 1',
-        'qfmt': '{{Word}}<br>{{Audio}}',
-        'afmt': '''
-            {{FrontSide}}
-            <hr id="answer">
-            <b>{{Definition}}</b><br>
-            <i>{{Translation}}</i><br>
-            <br>
-            {{Examples}}
-        '''
-    }]
-)
+# Initialize Jinja2 templates
+german_examples_template = Template(GERMAN_EXAMPLES_TEMPLATE)
+russian_examples_template = Template(RUSSIAN_EXAMPLES_TEMPLATE)
+full_examples_template = Template(FULL_EXAMPLES_TEMPLATE)
 
 def download_media_files(entries, temp_dir):
     """Download all media files for entries to a temporary directory"""
@@ -66,11 +156,7 @@ def download_media_files(entries, temp_dir):
             filename = entry['audio_file']
             file_path = os.path.join(temp_dir, filename)
             with open(file_path, 'wb') as f:
-                s3.download_fileobj(
-                    AUDIO_BUCKET,
-                    f"audio/{filename}",
-                    f
-                )
+                s3.download_fileobj(AUDIO_BUCKET, f"audio/{filename}", f)
             media_filenames.append(filename)  # Add just the filename
 
         for example in entry.get('examples', []):
@@ -78,11 +164,7 @@ def download_media_files(entries, temp_dir):
                 filename = example['audio_file']
                 file_path = os.path.join(temp_dir, filename)
                 with open(file_path, 'wb') as f:
-                    s3.download_fileobj(
-                        AUDIO_BUCKET,
-                        f"audio/{filename}",
-                        f
-                    )
+                    s3.download_fileobj(AUDIO_BUCKET, f"audio/{filename}", f)
                 media_filenames.append(filename)  # Add just the filename
 
     return media_filenames
@@ -105,16 +187,23 @@ def create_anki_deck(entries):
 
             # Add notes to deck
             for entry in entries:
-                # Generate examples HTML using template
-                examples_html = card_template.render(examples=entry.get('examples', []))
-
+                # Generate examples HTML using templates
+                german_examples_html = german_examples_template.render(examples=entry.get('examples', []))
+                russian_examples_html = russian_examples_template.render(examples=entry.get('examples', []))
+                full_examples_html = full_examples_template.render(examples=entry.get('examples', []))
+                
+                # For the German -> Russian card, we use German examples on front
+                # For the Russian -> German card, we use full examples on back
+                
                 # Create note
                 fields = [
-                    entry.get('query', ''),
-                    entry.get('definition', ''),
-                    entry.get('translation', ''),
-                    examples_html,
-                    f'[sound:{entry["audio_file"]}]' if entry.get('audio_file') else ''
+                    entry.get('query', ''),                # German
+                    entry.get('definition', ''),           # Definition
+                    entry.get('translation', ''),          # Russian
+                    german_examples_html,                    # Examples (full with translations)
+                    russian_examples_html,
+                    full_examples_html,                    # Examples (full with translations)
+                    f'[sound:{entry["audio_file"]}]' if entry.get('audio_file') else ''  # Audio
                 ]
 
                 note = genanki.Note(
