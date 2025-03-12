@@ -3,11 +3,33 @@ import io
 import random
 import boto3
 import os
+import tempfile
+import shutil
+from jinja2 import Environment, Template
 from dotenv import load_dotenv
 
 load_dotenv()
+
 # Constants
 AUDIO_BUCKET = os.environ.get('AUDIO_BUCKET')
+
+# Card template
+EXAMPLES_TEMPLATE = """
+<ul>
+{% for example in examples %}
+    <li>
+        {{ example.de }}<br>
+        {{ example.ru }}
+        {% if example.audio_file %}
+        <br>[sound:{{ example.audio_file }}]
+        {% endif %}
+    </li>
+{% endfor %}
+</ul>
+"""
+
+# Initialize Jinja2 template
+card_template = Template(EXAMPLES_TEMPLATE)
 
 # Define note model
 MODEL = genanki.Model(
@@ -34,67 +56,58 @@ MODEL = genanki.Model(
     }]
 )
 
+def download_media_files(entries, temp_dir):
+    """Download all media files for entries to a temporary directory"""
+    media_filenames = []  # Just filenames, not full paths
+    s3 = boto3.client('s3')
+
+    for entry in entries:
+        if entry.get('audio_file'):
+            filename = entry['audio_file']
+            file_path = os.path.join(temp_dir, filename)
+            with open(file_path, 'wb') as f:
+                s3.download_fileobj(
+                    AUDIO_BUCKET,
+                    f"audio/{filename}",
+                    f
+                )
+            media_filenames.append(filename)  # Add just the filename
+
+        for example in entry.get('examples', []):
+            if example.get('audio_file'):
+                filename = example['audio_file']
+                file_path = os.path.join(temp_dir, filename)
+                with open(file_path, 'wb') as f:
+                    s3.download_fileobj(
+                        AUDIO_BUCKET,
+                        f"audio/{filename}",
+                        f
+                    )
+                media_filenames.append(filename)  # Add just the filename
+
+    return media_filenames
+
 def create_anki_deck(entries):
     """Create an Anki deck from language entries"""
     try:
         print(f"Starting deck creation with {len(entries)} entries")
         print(f"Using audio bucket: {AUDIO_BUCKET}")
-        
-        # Create temp directory for media files
-        import tempfile
-        import shutil
+
+        # Create temporary directory for media files
         temp_dir = tempfile.mkdtemp()
-        print(f"Created temp directory: {temp_dir}")
-        
         try:
             # Create Anki deck
             deck_id = random.randrange(1 << 30, 1 << 31)
-            print(f"Generated deck_id: {deck_id}")
-            
             deck = genanki.Deck(
                 deck_id=deck_id,
                 name='German Vocabulary'
             )
-            
+
             # Add notes to deck
-            media_files = []  # Track media files here
-            s3 = boto3.client('s3')
-            
-            for i, entry in enumerate(entries):
-                print(f"\nProcessing entry {i+1}/{len(entries)}:")
-                print(f"Entry data: {entry}")
-                
-                # Download main audio if exists
-                if entry.get('audio_file'):
-                    print(f"Downloading main audio: {entry['audio_file']}")
-                    audio_path = os.path.join(temp_dir, entry['audio_file'])
-                    with open(audio_path, 'wb') as f:
-                        s3.download_fileobj(
-                            AUDIO_BUCKET,
-                            f"audio/{entry['audio_file']}",
-                            f
-                        )
-                    media_files.append(audio_path)
-                
-                # Format examples and download their audio
-                examples_html = '<ul>'
-                for j, ex in enumerate(entry.get('examples', [])):
-                    print(f"Processing example {j+1}: {ex}")
-                    examples_html += f'<li>{ex.get("de", "")}<br>{ex.get("ru", "")}</li>'
-                    
-                    if ex.get('audio_file'):
-                        print(f"Downloading example audio: {ex['audio_file']}")
-                        audio_path = os.path.join(temp_dir, ex['audio_file'])
-                        with open(audio_path, 'wb') as f:
-                            s3.download_fileobj(
-                                AUDIO_BUCKET,
-                                f"audio/{ex['audio_file']}",
-                                f
-                            )
-                        media_files.append(audio_path)
-                        examples_html += f'<br>[sound:{ex["audio_file"]}]'
-                examples_html += '</ul>'
-                
+            for entry in entries:
+                # Generate examples HTML using template
+                examples_html = card_template.render(examples=entry.get('examples', []))
+
                 # Create note
                 fields = [
                     entry.get('query', ''),
@@ -103,41 +116,42 @@ def create_anki_deck(entries):
                     examples_html,
                     f'[sound:{entry["audio_file"]}]' if entry.get('audio_file') else ''
                 ]
-                print(f"Note fields: {fields}")
-                
+
                 note = genanki.Note(
                     model=MODEL,
                     fields=fields
                 )
                 deck.add_note(note)
-            
-            print("\nCreating package...")
+
+            # Download all media files to temp directory and get filenames
+            media_filenames = download_media_files(entries, temp_dir)
+
+            # Create package
             package = genanki.Package(deck)
             
-            print(f"\nWriting package with {len(media_files)} media files...")
-            # Create a temporary file for the package
-            with tempfile.NamedTemporaryFile(suffix='.apkg', delete=False) as temp_file:
-                package.media_files = media_files
-                package.write_to_file(temp_file.name)
-                
-                # Read the generated file into memory
-                with open(temp_file.name, 'rb') as f:
-                    package_data = f.read()
-                    
-            # Clean up temp files
+            # Set media files with full paths for writing
+            package.media_files = [os.path.join(temp_dir, f) for f in media_filenames]
+
+            # Write to temporary file first
+            temp_file = tempfile.NamedTemporaryFile(suffix='.apkg', delete=False)
+            package.write_to_file(temp_file.name)
+
+            # Read the file into memory
+            with open(temp_file.name, 'rb') as f:
+                package_data = f.read()
+
+            # Clean up temp file
             os.unlink(temp_file.name)
-            
-            # Return the package data as a BytesIO object
+
+            # Return as BytesIO
             package_buf = io.BytesIO(package_data)
-            
             print("Deck creation completed successfully")
             return package_buf
-            
+
         finally:
             # Clean up temp directory
-            print(f"Cleaning up temp directory: {temp_dir}")
             shutil.rmtree(temp_dir)
-        
+
     except Exception as e:
         print(f"Error in create_anki_deck: {str(e)}")
         print(f"Error type: {type(e)}")
