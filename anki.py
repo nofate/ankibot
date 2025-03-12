@@ -71,33 +71,77 @@ MODEL = genanki.Model(
         }
     ],
     css='''
+        /* Modern minimalist design with pastel colors */
         .card {
-            font-family: Arial, sans-serif;
-            font-size: 20px;
+            font-family: 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            font-size: 18px;
             text-align: center;
-            background-color: #f5f5f5;
-            padding: 20px;
+            background-color: #f8f9fa;
+            color: #343a40;
+            padding: 2rem;
+            line-height: 1.6;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            max-width: 600px;
+            margin: 0 auto;
         }
+        
         .german {
-            font-weight: bold;
-            font-size: 24px;
-            color: #2c3e50;
+            font-weight: 600;
+            font-size: 28px;
+            color: #5d8aa8;
+            margin-bottom: 1rem;
+            letter-spacing: 0.5px;
         }
+        
         .russian {
-            font-weight: bold;
-            font-size: 24px;
-            color: #c0392b;
+            font-weight: 600;
+            font-size: 28px;
+            color: #d8bfd8;
+            margin-bottom: 1rem;
+            letter-spacing: 0.5px;
         }
+        
         .definition {
-            margin-top: 10px;
-            color: #7f8c8d;
+            font-style: italic;
+            color: #6c757d;
+            margin: 1rem 0;
+            padding: 0.5rem;
+            background-color: #e9ecef;
+            border-radius: 4px;
+            display: inline-block;
         }
+        
+        hr {
+            border: 0;
+            height: 1px;
+            background-image: linear-gradient(to right, rgba(0,0,0,0), rgba(180,180,180,0.5), rgba(0,0,0,0));
+            margin: 1.5rem 0;
+        }
+        
         .examples {
             text-align: left;
-            margin-top: 15px;
+            margin-top: 1.5rem;
+            background-color: #e3f2fd;
+            padding: 1rem;
+            border-radius: 6px;
+            font-size: 16px;
         }
+        
         .examples ul {
-            padding-left: 20px;
+            padding-left: 1.5rem;
+            margin: 0;
+        }
+        
+        .examples li {
+            margin-bottom: 0.8rem;
+            line-height: 1.4;
+        }
+        
+        /* Subtle hover effect for examples */
+        .examples li:hover {
+            background-color: #d1ecf1;
+            border-radius: 3px;
         }
     '''
 )
