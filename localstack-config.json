@@ -1,0 +1,24 @@
+{
+  "services": {
+    "lambda": true,
+    "apigateway": true,
+    "dynamodb": true,
+    "s3": true,
+    "sqs": true,
+    "iam": true,
+    "cloudformation": true,
+    "logs": true,
+    "polly": true
+  },
+  "lambda": {
+    "hot-reloading": true,
+    "docker": false
+  },
+  "s3": {
+    "cors": true
+  },
+  "debug": true,
+  "start_web": true,
+  "persistence": true,
+  "data_dir": "${PWD}/.localstack/data"
+} 
