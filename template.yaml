@@ -1,0 +1,299 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AnkiBot Infrastructure'
+
+Parameters:
+  TelegramToken:
+    Type: String
+    Description: Telegram Bot Token
+    NoEcho: false
+  AnthropicApiKey:
+    Type: String
+    Description: Anthropic API Key
+    NoEcho: false
+  DeploymentBucket:
+    Type: String
+    Description: S3 bucket for deployment artifacts
+    Default: ankibot-deployment
+
+Resources:
+  # S3 Buckets
+  AudioBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ankibot-audio-${AWS::AccountId}
+
+  DecksBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ankibot-decks-${AWS::AccountId}
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldFiles
+            Status: Enabled
+            ExpirationInDays: 1
+
+  AudioBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref AudioBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: polly.amazonaws.com
+            Action: 
+              - s3:PutObject
+            Resource: !Sub "arn:aws:s3:::${AudioBucket}/*"
+
+  # DynamoDB Table
+  LanguageEntriesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: language_entries
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: query
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: query-index
+          KeySchema:
+            - AttributeName: query
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  # SQS Queue
+  ProcessQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: ankibot-process-queue
+      VisibilityTimeout: 300
+
+  # Lambda Layer
+  DependenciesLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: ankibot-dependencies
+      Description: Common dependencies for AnkiBot
+      Content:
+        S3Bucket: !Ref DeploymentBucket
+        S3Key: layer.zip
+      CompatibleRuntimes:
+        - python3.12
+
+  # Lambda Functions
+  BotFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: ankibot-bot
+      Runtime: python3.12
+      Handler: bot.lambda_handler
+      Code:
+        S3Bucket: !Ref DeploymentBucket
+        S3Key: functions.zip
+      Layers:
+        - !Ref DependenciesLayer
+      Environment:
+        Variables:
+          TELEGRAM_TOKEN: !Ref TelegramToken
+          QUEUE_URL: !Ref ProcessQueue
+          AUDIO_BUCKET: !Ref AudioBucket
+          DECKS_BUCKET: !Ref DecksBucket
+      Role: !GetAtt BotRole.Arn
+      Timeout: 30
+      MemorySize: 256
+
+  ProcessFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: ankibot-process
+      Runtime: python3.12
+      Handler: process.lambda_handler
+      Code:
+        S3Bucket: !Ref DeploymentBucket
+        S3Key: functions.zip
+      Layers:
+        - !Ref DependenciesLayer
+      Environment:
+        Variables:
+          ANTHROPIC_API_KEY: !Ref AnthropicApiKey
+          AUDIO_BUCKET: !Ref AudioBucket
+      Role: !GetAtt ProcessRole.Arn
+      Timeout: 300
+      MemorySize: 512
+
+  # SQS Event Source Mapping
+  ProcessFunctionEventSource:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      Enabled: true
+      EventSourceArn: !GetAtt ProcessQueue.Arn
+      FunctionName: !Ref ProcessFunction
+      FunctionResponseTypes:
+        - ReportBatchItemFailures
+
+  # IAM Roles
+  BotRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ankibot-bot-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: BotPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !GetAtt LanguageEntriesTable.Arn
+                  - !Sub "${LanguageEntriesTable.Arn}/index/*"
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource: !GetAtt ProcessQueue.Arn
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: !Sub "arn:aws:s3:::${AudioBucket}/*"
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                Resource: !Sub "arn:aws:s3:::${DecksBucket}/*"
+
+  ProcessRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ankibot-process-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ProcessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:HeadObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:CopyObject
+                Resource: !Sub "arn:aws:s3:::${AudioBucket}/*"
+              - Effect: Allow
+                Action:
+                  - polly:StartSpeechSynthesisTask
+                  - polly:GetSpeechSynthesisTask
+                  - polly:SynthesizeSpeech
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource: !GetAtt ProcessQueue.Arn
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource: 
+                  - !GetAtt LanguageEntriesTable.Arn
+                  - !Sub "${LanguageEntriesTable.Arn}/index/*"
+
+  # API Gateway
+  BotApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: ankibot-api
+      Description: API for Telegram bot webhook
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  BotApiResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref BotApi
+      ParentId: !GetAtt BotApi.RootResourceId
+      PathPart: webhook
+
+  BotApiMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref BotApi
+      ResourceId: !Ref BotApiResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BotFunction.Arn}/invocations
+
+  BotApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - BotApiMethod
+    Properties:
+      RestApiId: !Ref BotApi
+
+  BotApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref BotApi
+      DeploymentId: !Ref BotApiDeployment
+      StageName: prod
+
+  # Lambda Permission for API Gateway
+  BotFunctionApiPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref BotFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${BotApi}/*
+
+Outputs:
+  AudioBucketName:
+    Description: Name of the audio bucket
+    Value: !Ref AudioBucket
+
+  DecksBucketName:
+    Description: Name of the decks bucket
+    Value: !Ref DecksBucket
+
+  QueueUrl:
+    Description: URL of the SQS queue
+    Value: !Ref ProcessQueue
+
+  WebhookUrl:
+    Description: Webhook URL for Telegram bot
+    Value: !Sub https://${BotApi}.execute-api.${AWS::Region}.amazonaws.com/prod/webhook 
