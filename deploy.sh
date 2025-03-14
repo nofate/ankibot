@@ -7,7 +7,7 @@ DEPLOYMENT_BUCKET="ankibot-deployment"
 REGION="eu-central-1"
 
 # Create deployment bucket if it doesn't exist
-aws s3 mb s3://$DEPLOYMENT_BUCKET --region $REGION
+aws s3 mb s3://$DEPLOYMENT_BUCKET --region $REGION 2>/dev/null || true
 
 # Create temp directories
 mkdir -p build/layer/python
@@ -24,6 +24,12 @@ cd ../..
 # Package function code
 zip -r build/functions.zip *.py
 
+# Calculate code hash
+LAYER_HASH=$(md5sum layer.zip | awk '{print $1}')
+FUNCTIONS_HASH=$(md5sum build/functions.zip | awk '{print $1}')
+CODE_HASH="${LAYER_HASH:0:8}-${FUNCTIONS_HASH:0:8}"
+echo "Code hash: $CODE_HASH"
+
 # Upload packages to S3
 aws s3 cp layer.zip s3://$DEPLOYMENT_BUCKET/
 aws s3 cp build/functions.zip s3://$DEPLOYMENT_BUCKET/
@@ -35,9 +41,12 @@ aws cloudformation deploy \
   --parameter-overrides \
     TelegramToken=$TELEGRAM_TOKEN \
     AnthropicApiKey=$ANTHROPIC_API_KEY \
+    CodeVersionHash=$CODE_HASH \
   --capabilities CAPABILITY_NAMED_IAM \
   --region $REGION
 
 # Clean up
 rm -rf build
-rm layer.zip 
+rm layer.zip
+
+echo "Deployment completed with code hash: $CODE_HASH" 

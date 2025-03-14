@@ -14,6 +14,10 @@ Parameters:
     Type: String
     Description: S3 bucket for deployment artifacts
     Default: ankibot-deployment
+  CodeVersionHash:
+    Type: String
+    Description: Hash of the code to force updates
+    Default: initial
 
 Resources:
   # S3 Buckets
@@ -31,20 +35,6 @@ Resources:
           - Id: DeleteOldFiles
             Status: Enabled
             ExpirationInDays: 1
-
-  AudioBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref AudioBucket
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: polly.amazonaws.com
-            Action: 
-              - s3:PutObject
-            Resource: !Sub "arn:aws:s3:::${AudioBucket}/*"
 
   # DynamoDB Table
   LanguageEntriesTable:
@@ -86,6 +76,8 @@ Resources:
         S3Key: layer.zip
       CompatibleRuntimes:
         - python3.12
+    Metadata:
+      CodeHash: !Ref CodeVersionHash
 
   # Lambda Functions
   BotFunction:
@@ -108,6 +100,8 @@ Resources:
       Role: !GetAtt BotRole.Arn
       Timeout: 30
       MemorySize: 256
+    Metadata:
+      CodeHash: !Ref CodeVersionHash
 
   ProcessFunction:
     Type: AWS::Lambda::Function
@@ -127,6 +121,8 @@ Resources:
       Role: !GetAtt ProcessRole.Arn
       Timeout: 300
       MemorySize: 512
+    Metadata:
+      CodeHash: !Ref CodeVersionHash
 
   # SQS Event Source Mapping
   ProcessFunctionEventSource:
