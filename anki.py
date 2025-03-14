@@ -131,11 +131,13 @@ MODEL = genanki.Model(
         .examples ul {
             padding-left: 1.5rem;
             margin: 0;
+            list-style-type: none;
         }
         
         .examples li {
             margin-bottom: 0.8rem;
             line-height: 1.4;
+            padding: 0.5rem;
         }
         
         /* Subtle hover effect for examples */
