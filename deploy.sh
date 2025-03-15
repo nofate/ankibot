@@ -22,17 +22,23 @@ zip -r ../../layer.zip .
 cd ../..
 
 # Package function code
-zip -r build/functions.zip *.py messages.yml
+zip -r functions.zip *.py messages.yml
 
 # Calculate code hash
 LAYER_HASH=$(md5sum layer.zip | awk '{print $1}')
-FUNCTIONS_HASH=$(md5sum build/functions.zip | awk '{print $1}')
+FUNCTIONS_HASH=$(md5sum functions.zip | awk '{print $1}')
 CODE_HASH="${LAYER_HASH:0:8}-${FUNCTIONS_HASH:0:8}"
 echo "Code hash: $CODE_HASH"
 
-# Upload packages to S3
-aws s3 cp layer.zip s3://$DEPLOYMENT_BUCKET/
-aws s3 cp build/functions.zip s3://$DEPLOYMENT_BUCKET/
+# Rename zip files with hash to avoid S3 caching
+LAYER_ZIP="layer-${LAYER_HASH:0:8}.zip"
+FUNCTIONS_ZIP="functions-${FUNCTIONS_HASH:0:8}.zip"
+mv layer.zip $LAYER_ZIP
+mv functions.zip $FUNCTIONS_ZIP
+
+# Upload the hashed versions
+aws s3 cp $LAYER_ZIP s3://$DEPLOYMENT_BUCKET/$LAYER_ZIP
+aws s3 cp $FUNCTIONS_ZIP s3://$DEPLOYMENT_BUCKET/$FUNCTIONS_ZIP
 
 # Deploy CloudFormation stack
 aws cloudformation deploy \
@@ -42,11 +48,14 @@ aws cloudformation deploy \
     TelegramToken=$TELEGRAM_TOKEN \
     AnthropicApiKey=$ANTHROPIC_API_KEY \
     CodeVersionHash=$CODE_HASH \
+    LayerZipName=$LAYER_ZIP \
+    FunctionsZipName=$FUNCTIONS_ZIP \
   --capabilities CAPABILITY_NAMED_IAM \
   --region $REGION
 
 # Clean up
 rm -rf build
-rm layer.zip
+rm $LAYER_ZIP
+rm $FUNCTIONS_ZIP
 
 echo "Deployment completed with code hash: $CODE_HASH" 

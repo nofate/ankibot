@@ -18,6 +18,14 @@ Parameters:
     Type: String
     Description: Hash of the code to force updates
     Default: initial
+  LayerZipName:
+    Type: String
+    Description: Name of the layer zip file
+    Default: layer.zip
+  FunctionsZipName:
+    Type: String
+    Description: Name of the functions zip file
+    Default: functions.zip
 
 Resources:
   # S3 Buckets
@@ -73,7 +81,7 @@ Resources:
       Description: Common dependencies for AnkiBot
       Content:
         S3Bucket: !Ref DeploymentBucket
-        S3Key: layer.zip
+        S3Key: !Ref LayerZipName
       CompatibleRuntimes:
         - python3.12
     Metadata:
@@ -88,7 +96,7 @@ Resources:
       Handler: bot.lambda_handler
       Code:
         S3Bucket: !Ref DeploymentBucket
-        S3Key: functions.zip
+        S3Key: !Ref FunctionsZipName
       Layers:
         - !Ref DependenciesLayer
       Environment:
@@ -100,6 +108,9 @@ Resources:
       Role: !GetAtt BotRole.Arn
       Timeout: 30
       MemorySize: 256
+    UpdatePolicy:
+      AutoScalingScheduledAction:
+        IgnoreUnmodifiedGroupSizeProperties: false
     Metadata:
       CodeHash: !Ref CodeVersionHash
 
@@ -121,6 +132,9 @@ Resources:
       Role: !GetAtt ProcessRole.Arn
       Timeout: 300
       MemorySize: 512
+    UpdatePolicy:
+      AutoScalingScheduledAction:
+        IgnoreUnmodifiedGroupSizeProperties: false
     Metadata:
       CodeHash: !Ref CodeVersionHash
 
