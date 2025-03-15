@@ -1,0 +1,29 @@
+en:
+  help_text: |
+    Available commands:
+    /help - Show this help message
+    /export - Export your Anki deck
+    /list - Show saved words
+  empty_collection: Your collection is empty.
+  deck_ready: Here's your Anki deck!
+  deck_error: 😭 Sorry, there was an error generating your deck.
+  collection_title: Your collection
+  collection_error: 😭 Sorry, there was an error retrieving your collection.
+  message_queued: ✨ Your words have been added to the queue!
+  message_error: 😭 Sorry, there was an error processing your message.
+  unknown_command: Unknown command. Type /help to see available commands.
+
+ru:
+  help_text: |
+    Доступные команды:
+    /help - Показать это сообщение
+    /export - Экспортировать колоду Anki
+    /list - Показать сохраненные слова
+  empty_collection: Коллекция пока пуста.
+  deck_ready: Колода Anki готова!
+  deck_error: 😭 Ошибка при генерации колоды.
+  collection_title: Ваша коллекция
+  collection_error: 😭 Ошибка при получении коллекции.
+  message_queued: ✨ Новые слова добавлены в очередь!
+  message_error: 😭 Ошибка при обработке команды.
+  unknown_command: Неизвестная команда. Введите /help для просмотра доступных команд.

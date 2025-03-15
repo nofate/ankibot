@@ -22,7 +22,7 @@ zip -r ../../layer.zip .
 cd ../..
 
 # Package function code
-zip -r build/functions.zip *.py
+zip -r build/functions.zip *.py messages.yml
 
 # Calculate code hash
 LAYER_HASH=$(md5sum layer.zip | awk '{print $1}')

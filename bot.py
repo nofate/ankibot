@@ -16,6 +16,7 @@ import io
 import random
 import time
 from anki import create_anki_deck
+from localization import t, set_language
 
 # Get environment variables
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
@@ -31,14 +32,20 @@ bot = Application.builder().token(TELEGRAM_TOKEN).build().bot
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 
+def get_user_language(update: Update):
+    """Get the user's language from Telegram"""
+    language_code = update.effective_user.language_code
+    if language_code:
+        # Simplify language code (e.g., 'en-US' -> 'en')
+        language_code = language_code.split('-')[0].lower()
+        
+    # Return the language code if it's supported, otherwise return the default
+    if language_code in ["ru", "en"]:
+        return language_code
+    return "ru"  # Default to Russian
+
 def help_command(update: Update):
-    help_text = """
-        Available commands:
-        /help - Show this help message
-        /export - Export your data
-        /list - Show available items
-    """
-    loop.run_until_complete(update.message.reply_text(help_text))
+    loop.run_until_complete(update.message.reply_text(t("help_text")))
 
 async def export_command(update: Update):
     """Generate and share Anki deck"""
@@ -47,9 +54,7 @@ async def export_command(update: Update):
         entries = LanguageEntry.get_table().scan().get('Items', [])
         
         if not entries:
-            await update.message.reply_text(
-                "No entries found to export."
-            )
+            await update.message.reply_text(t("empty_collection"))
             return
             
         # Create Anki deck
@@ -76,14 +81,12 @@ async def export_command(update: Update):
         await update.message.reply_document(
             document=package_buf.getvalue(),
             filename=f"german_vocab_{timestamp}.apkg",  # Clean filename for user
-            caption="Here's your Anki deck!"
+            caption=t("deck_ready")
         )
             
     except Exception as e:
         print(f"Error generating deck: {str(e)}")
-        await update.message.reply_text(
-            "Sorry, there was an error generating your deck."
-        )
+        await update.message.reply_text(t("deck_error"))
 
 def list_command(update: Update):
     """Show all saved German words/phrases"""
@@ -93,21 +96,18 @@ def list_command(update: Update):
         items = entries.get('Items', [])
         
         if not items:
-            loop.run_until_complete(update.message.reply_text(
-                "No entries found in the database yet."
-            ))
+            loop.run_until_complete(update.message.reply_text(t("empty_collection")))
             return
         
         # Format the list with query, translation and definition
         message_lines = []
         for item in items:
             message_lines.append(
-                f"• {item['query']}\n"
-                f"  {item['definition']} | {item['translation']}"
+                f"• {item['query']} | {item['definition']} | {item['translation']}"
             )
         
         # Join all lines and send
-        message = "Saved entries:\n\n" + "\n\n".join(message_lines)
+        message = f"{t('collection_title')}\n\n" + "\n\n".join(message_lines)
         
         # Split message if too long (Telegram has 4096 char limit)
         if len(message) > 4000:
@@ -119,9 +119,7 @@ def list_command(update: Update):
             
     except Exception as e:
         print(f"Error in list_command: {str(e)}")
-        loop.run_until_complete(update.message.reply_text(
-            "Sorry, there was an error retrieving the entries."
-        ))
+        loop.run_until_complete(update.message.reply_text(t("collection_error")))
 
 def handle_message(update: Update):
     try:
@@ -140,14 +138,10 @@ def handle_message(update: Update):
         )
         
         # Reply to user
-        loop.run_until_complete(update.message.reply_text(
-            f"Your message has been queued! You said: {update.message.text}"
-        ))
+        loop.run_until_complete(update.message.reply_text(t("message_queued")))
     except Exception as e:
         print(f"Error sending to SQS: {str(e)}")
-        loop.run_until_complete(update.message.reply_text(
-            "Sorry, there was an error processing your message."
-        ))
+        loop.run_until_complete(update.message.reply_text(t("message_error")))
 
 def lambda_handler(event, context):
     """AWS Lambda handler"""
@@ -169,6 +163,10 @@ def lambda_handler(event, context):
         if isinstance(body, dict) and 'message' in body:
             update = Update.de_json(body, bot)
             
+            # Set global language based on user's language
+            language = get_user_language(update)
+            set_language(language)
+            
             # Route to appropriate handler
             text = update.message.text
             print(f"Processing message text: {text}")
@@ -183,9 +181,7 @@ def lambda_handler(event, context):
                     list_command(update)
                 else:
                     # Unknown command - inform user
-                    loop.run_until_complete(update.message.reply_text(
-                        "Unknown command. Type /help to see available commands."
-                    ))
+                    loop.run_until_complete(update.message.reply_text(t("unknown_command")))
                     return {
                         'statusCode': 200,
                         'body': json.dumps({'status': 'Unknown command'})
