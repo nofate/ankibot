@@ -10,7 +10,7 @@ import json
 import os
 import boto3
 import asyncio
-from core import LanguageEntry
+from core import LanguageEntry, User, LanguageLevel
 import genanki
 import io
 import random
@@ -31,6 +31,14 @@ s3 = boto3.client('s3')
 bot = Application.builder().token(TELEGRAM_TOKEN).build().bot
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
+
+def extract_command_args(text: str) -> list:
+    """Extract command arguments from message text"""
+    # Split by spaces and remove the command itself (first element)
+    parts = text.split()
+    if len(parts) > 1:
+        return parts[1:]
+    return []
 
 def get_user_language(update: Update):
     """Get the user's language from Telegram"""
@@ -143,6 +151,58 @@ def handle_message(update: Update):
         print(f"Error sending to SQS: {str(e)}")
         loop.run_until_complete(update.message.reply_text(t("message_error")))
 
+async def level_command(update: Update, args: list = None):
+    """Handle /level command to set or get user's language level"""
+    user_id = update.effective_user.id
+    user = User.get_user(user_id)
+    
+    if not args:
+        # No arguments, return current level
+        await update.message.reply_text(
+            t("level_current").format(level=user.level.value)
+        )
+        return
+    
+    # Set new level
+    new_level = args[0].upper()
+    try:
+        # Convert string to enum
+        level_enum = LanguageLevel.from_string(new_level)
+        # Update user
+        user.level = level_enum
+        user.save()
+        await update.message.reply_text(
+            t("level_updated").format(level=level_enum.value)
+        )
+    except ValueError as e:
+        await update.message.reply_text(
+            t("level_invalid").format(
+                levels=", ".join(LanguageLevel.get_all_values())
+            )
+        )
+
+async def context_command(update: Update, args: list = None):
+    """Handle /context command to set or get user's context"""
+    user_id = update.effective_user.id
+    user = User.get_user(user_id)
+    
+    if not args:
+        # No arguments, return current context
+        current_context = user.context if user.context else t("context_empty")
+        await update.message.reply_text(
+            t("context_current").format(context=current_context)
+        )
+        return
+    
+    # Set new context
+    new_context = ' '.join(args)
+    user.context = new_context
+    user.save()
+    await update.message.reply_text(
+        t("context_updated")
+    )
+
+
 def lambda_handler(event, context):
     """AWS Lambda handler"""
     
@@ -179,6 +239,12 @@ def lambda_handler(event, context):
                     loop.run_until_complete(export_command(update))
                 elif text.startswith('/list'):
                     list_command(update)
+                elif text.startswith('/level'):
+                    args = extract_command_args(text)
+                    loop.run_until_complete(level_command(update, args))
+                elif text.startswith('/context'):
+                    args = extract_command_args(text)
+                    loop.run_until_complete(context_command(update, args))
                 else:
                     # Unknown command - inform user
                     loop.run_until_complete(update.message.reply_text(t("unknown_command")))

@@ -66,6 +66,19 @@ Resources:
           Projection:
             ProjectionType: ALL
 
+  # Users Table
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: users
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: user_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: user_id
+          KeyType: HASH
+
   # SQS Queue
   ProcessQueue:
     Type: AWS::SQS::Queue
@@ -122,7 +135,7 @@ Resources:
       Handler: process.lambda_handler
       Code:
         S3Bucket: !Ref DeploymentBucket
-        S3Key: functions.zip
+        S3Key: !Ref FunctionsZipName
       Layers:
         - !Ref DependenciesLayer
       Environment:
@@ -174,9 +187,11 @@ Resources:
                   - dynamodb:GetItem
                   - dynamodb:Query
                   - dynamodb:Scan
+                  - dynamodb:UpdateItem
                 Resource:
                   - !GetAtt LanguageEntriesTable.Arn
                   - !Sub "${LanguageEntriesTable.Arn}/index/*"
+                  - !GetAtt UsersTable.Arn
               - Effect: Allow
                 Action:
                   - sqs:SendMessage
@@ -238,6 +253,7 @@ Resources:
                 Resource: 
                   - !GetAtt LanguageEntriesTable.Arn
                   - !Sub "${LanguageEntriesTable.Arn}/index/*"
+                  - !GetAtt UsersTable.Arn
 
   # API Gateway
   BotApi:

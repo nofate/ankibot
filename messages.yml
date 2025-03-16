@@ -4,6 +4,8 @@ en:
     /help - Show this help message
     /export - Export your Anki deck
     /list - Show saved words
+    /level - Set or view your language level
+    /context - Set or view your learning context
   empty_collection: Your collection is empty.
   deck_ready: Here's your Anki deck!
   deck_error: 😭 Sorry, there was an error generating your deck.
@@ -12,6 +14,13 @@ en:
   message_queued: ✨ Your words have been added to the queue!
   message_error: 😭 Sorry, there was an error processing your message.
   unknown_command: Unknown command. Type /help to see available commands.
+  error: "Sorry, an error occurred. Please try again later."
+  level_current: "Your current language level is: {level}"
+  level_updated: "Your language level has been updated to: {level}"
+  level_invalid: "Invalid level. Please choose from: {levels}"
+  context_current: "Your current context: {context}"
+  context_empty: "No context set"
+  context_updated: "Your context has been updated."
 
 ru:
   help_text: |
@@ -19,6 +28,8 @@ ru:
     /help - Показать это сообщение
     /export - Экспортировать колоду Anki
     /list - Показать сохраненные слова
+    /level - Установите или просмотрите свой уровень языка
+    /context - Установите или просмотрите контекст обучения
   empty_collection: Коллекция пока пуста.
   deck_ready: Колода Anki готова!
   deck_error: 😭 Ошибка при генерации колоды.
@@ -27,3 +38,10 @@ ru:
   message_queued: ✨ Новые слова добавлены в очередь!
   message_error: 😭 Ошибка при обработке команды.
   unknown_command: Неизвестная команда. Введите /help для просмотра доступных команд.
+  error: "Извините, произошла ошибка. Пожалуйста, попробуйте позже."
+  level_current: "Ваш текущий уровень языка: {level}"
+  level_updated: "Ваш уровень языка обновлен до: {level}"
+  level_invalid: "Неверный уровень. Пожалуйста, выберите из: {levels}"
+  context_current: "Ваш текущий контекст: {context}"
+  context_empty: "Контекст не установлен"
+  context_updated: "Ваш контекст был обновлен."

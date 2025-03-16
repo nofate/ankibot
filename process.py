@@ -6,18 +6,18 @@ import boto3
 import hashlib
 import time
 from typing import List, Tuple, Optional
-from core import LanguageEntry, Example
+from core import LanguageEntry, Example, User, LanguageLevel
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
 
-def get_examples_from_claude(query: str) -> Tuple[str, str, List[Tuple[str, str]]]:
+def get_examples_from_claude(query: str, user_level: str = "B1", user_context: str = "") -> Tuple[str, str, List[Tuple[str, str]]]:
     """Get definition, translation and examples from Claude"""
     client = anthropic.Anthropic(
         api_key=os.getenv("ANTHROPIC_API_KEY")
     )
     
-    system_prompt = """You are a german language assistant for a B1 student learning B2 Niveau.
+    system_prompt = f"""You are a german language assistant for a {user_level} level student.
     First write a dictionary form of a word and its russian translation separated by |.
     If user input is a phrase with multiple words ­— dictionary form for phrases  should be if  possible infinitive with corresponding word order (verb last) and correc t government (case and prepositions).
     Dictionary form for single nouns should have singular and plural forms with definite article divided by commas.
@@ -25,6 +25,10 @@ def get_examples_from_claude(query: str) -> Tuple[str, str, List[Tuple[str, str]
     Then provide 5 different simple usage examples of German Word and their Russian Translations. 
     Examples should be short enough. Try to use perfekt and present tenses. Answer only with a list, without any explanations, sticking to a following format: Example | Translation.
     Don't use any line numbers."""
+    
+    # Add user context if available
+    if user_context:
+        system_prompt += f"\n\nExamples should be related to the following context: {user_context}"
     
     message = client.messages.create(
         model="claude-3-5-sonnet-20241022",
@@ -134,10 +138,10 @@ async def generate_audio_files(query: str, example_texts: List[str]) -> Tuple[st
     # First result is query audio, rest are example audios
     return results[0], results[1:]
 
-def create_language_entry(query: str) -> LanguageEntry:
+def create_language_entry(query: str, user_level: str = "B1", user_context: str = "") -> LanguageEntry:
     """Creates a new LanguageEntry for the given query"""
     # Get content from Claude
-    definition, translation, example_pairs = get_examples_from_claude(query)
+    definition, translation, example_pairs = get_examples_from_claude(query, user_level, user_context)
     
     # Create Example objects (without audio yet)
     examples = [
@@ -175,6 +179,15 @@ def lambda_handler(event, context):
         for record in event['Records']:
             message = json.loads(record['body'])
             
+            # Get user data if user_id is available
+            user_level = "B1"  # Default level
+            user_context = ""  # Default empty context
+            
+            if 'user_id' in message:
+                user = User.get_user(message['user_id'])
+                user_level = user.level.value
+                user_context = user.context
+            
             # Split message into lines and clean them
             lines = [line.strip() for line in message['text'].split('\n') if line.strip()]
             
@@ -189,7 +202,7 @@ def lambda_handler(event, context):
                         continue
                     
                     # Create and save new entry
-                    entry = create_language_entry(line)
+                    entry = create_language_entry(line, user_level, user_context)
                     entry.save()
                     
                     print(f"Successfully processed and saved: {line}")
