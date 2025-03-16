@@ -1,5 +1,7 @@
 # AnkiBot - Telegram Language Learning Assistant
 
+🤖⚠️ This is an experimental project to explore Cursor capabilities. All of the code and this README were generated with only minor manual one-time fixes like string formatting or adding emojis
+
 ## Overview
 
 AnkiBot is a Telegram bot designed to help users learn German vocabulary through personalized examples and Anki flashcard integration. The bot allows users to send German words or phrases, and it responds with definitions, translations, and contextual examples tailored to the user's language level and learning context.
