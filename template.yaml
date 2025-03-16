@@ -272,6 +272,8 @@ Resources:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
       - BotApiMethod
+      - WebApiMethod
+      - WebApiProxyMethod
     Properties:
       RestApiId: !Ref BotApi
 
@@ -291,6 +293,107 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${BotApi}/*
 
+  ApiFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: ankibot-api
+      Runtime: python3.12
+      Handler: api.lambda_handler
+      Code:
+        S3Bucket: !Ref DeploymentBucket
+        S3Key: !Ref FunctionsZipName
+      Layers:
+        - !Ref DependenciesLayer
+      Environment:
+        Variables:
+          AUDIO_BUCKET: !Ref AudioBucket
+      Role: !GetAtt ApiRole.Arn
+      Timeout: 30
+      MemorySize: 256
+    UpdatePolicy:
+      AutoScalingScheduledAction:
+        IgnoreUnmodifiedGroupSizeProperties: false
+    Metadata:
+      CodeHash: !Ref CodeVersionHash
+
+  ApiRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ankibot-api-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ApiPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !GetAtt LanguageEntriesTable.Arn
+                  - !Sub "${LanguageEntriesTable.Arn}/index/*"
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: !Sub "arn:aws:s3:::${AudioBucket}/*"
+
+  WebApiResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref BotApi
+      ParentId: !GetAtt BotApi.RootResourceId
+      PathPart: collection
+
+  WebApiProxyResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref BotApi
+      ParentId: !Ref WebApiResource
+      PathPart: "{proxy+}"
+
+  WebApiProxyMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref BotApi
+      ResourceId: !Ref WebApiProxyResource
+      HttpMethod: ANY
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiFunction.Arn}/invocations
+
+  WebApiMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref BotApi
+      ResourceId: !Ref WebApiResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiFunction.Arn}/invocations
+
+  ApiPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ApiFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${BotApi}/*
+
 Outputs:
   AudioBucketName:
     Description: Name of the audio bucket
@@ -306,4 +409,8 @@ Outputs:
 
   WebhookUrl:
     Description: Webhook URL for Telegram bot
-    Value: !Sub https://${BotApi}.execute-api.${AWS::Region}.amazonaws.com/prod/webhook 
+    Value: !Sub https://${BotApi}.execute-api.${AWS::Region}.amazonaws.com/prod/webhook
+
+  WebAppUrl:
+    Description: Web application URL
+    Value: !Sub https://${BotApi}.execute-api.${AWS::Region}.amazonaws.com/prod/collection 

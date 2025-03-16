@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Your Collection - AnkiBot{% endblock %}
+
+{% block content %}
+<div class="collection-container">
+    <h2>Your Collection</h2>
+    
+    {% if items %}
+        <div class="collection-list">
+            {% for item in items %}
+                <div class="entry" id="entry-{{ item.id }}">
+                    <div class="word">{{ item.query }}</div>
+                    <div class="definition">{{ item.definition }}</div>
+                    <div class="translation">{{ item.translation }}</div>
+                    
+                    <!-- HTMX powered buttons for future functionality -->
+                    <div class="actions" style="margin-top: 0.5rem;">
+                        <button 
+                            hx-get="/collection/{{ item.id }}/audio" 
+                            hx-target="#audio-{{ item.id }}"
+                            hx-swap="innerHTML"
+                            hx-trigger="click"
+                            class="audio-btn">
+                            Play Audio
+                        </button>
+                        <div id="audio-{{ item.id }}"></div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-message">
+            <p>Your collection is empty.</p>
+            <p>Start adding words in the Telegram bot!</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %} 

@@ -12,6 +12,7 @@ aws s3 mb s3://$DEPLOYMENT_BUCKET --region $REGION 2>/dev/null || true
 # Create temp directories
 mkdir -p build/layer/python
 mkdir -p build/functions
+mkdir -p templates
 
 # Install dependencies for layer
 pip install -r requirements.txt -t build/layer/python
@@ -22,7 +23,7 @@ zip -r ../../layer.zip .
 cd ../..
 
 # Package function code
-zip -r functions.zip *.py messages.yml
+zip -r functions.zip *.py messages.yml templates/
 
 # Calculate code hash
 LAYER_HASH=$(md5sum layer.zip | awk '{print $1}')
@@ -51,6 +52,7 @@ aws cloudformation deploy \
     LayerZipName=$LAYER_ZIP \
     FunctionsZipName=$FUNCTIONS_ZIP \
   --capabilities CAPABILITY_NAMED_IAM \
+  --no-disable-rollback \
   --region $REGION
 
 # Clean up

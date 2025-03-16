@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block title %}Error - AnkiBot{% endblock %}
+
+{% block content %}
+<div class="error-container">
+    <h2>Something went wrong</h2>
+    <div class="error">
+        {{ error }}
+    </div>
+    <p>Please try again later or contact support.</p>
+</div>
+{% endblock %} 

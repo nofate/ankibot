@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}AnkiBot{% endblock %}</title>
+    <!-- HTMX for interactivity -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <!-- Simple CSS for styling -->
+    <style>
+        body {
+            font-family: 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 1rem;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #eee;
+        }
+        .entry {
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .entry:hover {
+            background-color: #f0f0f0;
+        }
+        .word {
+            font-weight: bold;
+            color: #5d8aa8;
+            font-size: 1.2rem;
+        }
+        .definition {
+            color: #666;
+            font-style: italic;
+            margin: 0.5rem 0;
+        }
+        .translation {
+            color: #d8bfd8;
+            font-weight: bold;
+        }
+        .empty-message {
+            text-align: center;
+            padding: 2rem;
+            color: #999;
+        }
+        .error {
+            background-color: #ffebee;
+            color: #c62828;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+        }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <div class="header">
+        <h1>AnkiBot</h1>
+        <nav>
+            <a href="/collection">Collection</a>
+        </nav>
+    </div>
+    
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+    
+    <footer style="margin-top: 2rem; text-align: center; color: #999; font-size: 0.8rem;">
+        <p>AnkiBot &copy; 2025</p>
+    </footer>
+</body>
+</html> 
