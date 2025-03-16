@@ -1,8 +1,6 @@
 # AnkiBot - Telegram Language Learning Assistant
 
-🤖⚠️ This is an experimental project to explore Cursor capabilities. All of the code and this README were generated with only minor manual one-time fixes like string formatting or adding emojis.
-
-Almost pure vibe coding experience.
+🤖⚠️ The project is a pure experiment with no-code-only-prompts-claude-works-expert-laughs development cycle, with manual curation and trash elimination within the generated codebase, in order to explore Cursor capabilities and limitations. All of the code and even this README were generated with only minor manual one-time fixes like string formatting or adding emojis. 
 
 ## Overview
 
