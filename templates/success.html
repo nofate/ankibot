@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block title %}Success - AnkiBot{% endblock %}
+
+{% block content %}
+<div class="success-container">
+    <h2>Success</h2>
+    <div class="success-message">
+        {{ message }}
+    </div>
+    <p><a href="{{ stage_name }}/collection">Back to Collection</a></p>
+</div>
+{% endblock %} 

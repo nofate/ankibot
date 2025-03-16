@@ -12,7 +12,6 @@ aws s3 mb s3://$DEPLOYMENT_BUCKET --region $REGION 2>/dev/null || true
 # Create temp directories
 mkdir -p build/layer/python
 mkdir -p build/functions
-mkdir -p templates
 
 # Install dependencies for layer
 pip install -r requirements.txt -t build/layer/python

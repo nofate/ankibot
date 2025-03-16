@@ -336,17 +336,18 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
-                  - dynamodb:PutItem
                   - dynamodb:GetItem
+                  - dynamodb:PutItem
                   - dynamodb:Query
                   - dynamodb:Scan
-                Resource:
-                  - !GetAtt LanguageEntriesTable.Arn
-                  - !Sub "${LanguageEntriesTable.Arn}/index/*"
+                  - dynamodb:DeleteItem
+                Resource: !GetAtt LanguageEntriesTable.Arn
               - Effect: Allow
                 Action:
                   - s3:GetObject
-                Resource: !Sub "arn:aws:s3:::${AudioBucket}/*"
+                  - s3:PutObject
+                Resource:
+                  - !Sub arn:aws:s3:::${AudioBucket}/*
 
   WebApiResource:
     Type: AWS::ApiGateway::Resource
