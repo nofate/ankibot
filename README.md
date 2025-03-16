@@ -2,7 +2,7 @@
 
 🤖⚠️ This is an experimental project to explore Cursor capabilities. All of the code and this README were generated with only minor manual one-time fixes like string formatting or adding emojis.
 
-Almost pure vibe coding exprience.
+Almost pure vibe coding experience.
 
 ## Overview
 
