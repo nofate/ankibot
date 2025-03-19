@@ -15,6 +15,7 @@ from aws_lambda_powertools.event_handler.exceptions import (
 from aws_lambda_powertools.utilities.typing import LambdaContext
 from aws_lambda_powertools.logging import correlation_paths
 from aws_lambda_powertools.utilities.data_classes import APIGatewayProxyEvent
+from tg_tools import session_middleware
 
 
 # Initialize Jinja2 environment
@@ -39,6 +40,89 @@ def html_response(body, status_code=200):
         body=body,
     )
 
+# Route handlers
+@app.get("/app")
+def get_app():
+    """Get the Telegram Mini App interface"""
+    try:
+        # Get stage name from the global context
+        stage_name = context_dict.get('stage_name', '')
+        
+        # Get user data from the request context
+        authorizer = app.current_event.request_context.get('authorizer', {})
+        user_data = authorizer.get('user_data')
+        
+        # Render template
+        template = jinja_env.get_template('app.html')
+        return html_response(template.render(
+            stage_name=stage_name,
+            user_data=user_data
+        ))
+    except Exception as e:
+        error_handler(e)  # This will raise an InternalServerError
+
+@app.get("/app/collection")
+def get_collection():
+    """Get all language entries and render them as HTML"""
+    try:
+        # Get user data from the request context
+        authorizer = app.current_event.request_context.get('authorizer', {})
+        is_authenticated = authorizer.get('is_authenticated', False)
+        user_data = authorizer.get('user_data')
+        user_id = authorizer.get('user_id')
+        if not is_authenticated or not user_id:
+            raise BadRequestError("Authentication required")
+
+        # Get all entries from DynamoDB
+        entries = LanguageEntry.get_table().scan()
+        items = entries.get('Items', [])
+        
+        # Get stage name from the global context
+        stage_name = context_dict.get('stage_name', '')
+
+        # Sort entries alphabetically by query text
+        items.sort(key=lambda x: x.get('query', '').lower())
+        
+        # Render template
+        template = jinja_env.get_template('collection.html')
+        return html_response(template.render(
+            items=items,
+            stage_name=stage_name,
+            user_data=user_data
+        ))
+    except Exception as e:
+        error_handler(e)  # This will raise an InternalServerError
+
+@app.delete("/app/collection/<item_id>")
+def delete_entry(item_id):
+    """Delete a language entry"""
+    try:
+        # Get user data from the request context
+        authorizer = app.current_event.request_context.get('authorizer', {})
+        is_authenticated = authorizer.get('is_authenticated', False)
+        user_id = authorizer.get('user_id')
+        
+        # Check authentication
+        if not is_authenticated or not user_id:
+            logger.warning("Unauthenticated delete attempt")
+            raise BadRequestError("Authentication required")
+        
+        # Delete the entry from DynamoDB
+        LanguageEntry.get_table().delete_item(
+            Key={
+                'id': item_id
+            }
+        )
+        
+        logger.info(f"Entry {item_id} deleted by user {user_id}")
+        
+        # Return an empty response (HTMX will remove the element)
+        return html_response("")
+    except Exception as e:
+        logger.exception(f"Error deleting entry {item_id}")
+        raise ServiceError(f'<div class="error">Error deleting entry: {str(e)}</div>')
+
+
 # Error handler
 def error_handler(e, status_code=500):
     """Handle exceptions and return appropriate HTML response"""
@@ -57,52 +141,6 @@ def error_handler(e, status_code=500):
     else:
         raise InternalServerError(error_html)
 
-# Route handlers
-@app.get("/collection")
-def get_collection():
-    """Get all language entries and render them as HTML"""
-    try:
-        # Get all entries from DynamoDB
-        entries = LanguageEntry.get_table().scan()
-        items = entries.get('Items', [])
-        
-        # Get stage name from the global context
-        stage_name = context_dict.get('stage_name', '')
-        
-        # Render template
-        template = jinja_env.get_template('collection.html')
-        return html_response(template.render(
-            items=items,
-            stage_name=stage_name
-        ))
-    except Exception as e:
-        error_handler(e)  # This will raise an InternalServerError
-
-@app.delete("/collection/<item_id>")
-def delete_entry(item_id):
-    """Delete a language entry"""
-    try:
-        # Delete the entry from DynamoDB
-        LanguageEntry.get_table().delete_item(
-            Key={
-                'id': item_id
-            }
-        )
-        
-        # Return an empty response (HTMX will remove the element)
-        return html_response("")
-    except Exception as e:
-        logger.exception(f"Error deleting entry {item_id}")
-        raise ServiceError(f'<div class="error">Error deleting entry: {str(e)}</div>')
-
-@app.get("/collection/<item_id>/audio")
-def get_audio(item_id):
-    """Get audio for a language entry"""
-    try:
-        # Future implementation for audio playback
-        return html_response(f'<audio controls autoplay><source src="/audio/{item_id}.mp3" type="audio/mpeg">Your browser does not support the audio element.</audio>')
-    except Exception as e:
-        error_handler(e)  # This will raise an InternalServerError
 
 # Not found handler
 @app.not_found
@@ -134,6 +172,7 @@ def handle_service_error(ex: ServiceError):
     return html_response(str(ex), 500)
 
 @logger.inject_lambda_context(correlation_id_path=correlation_paths.API_GATEWAY_REST)
+@session_middleware
 def lambda_handler(event, context: LambdaContext):
     """AWS Lambda handler for API Gateway"""
     try:

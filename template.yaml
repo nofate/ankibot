@@ -323,6 +323,7 @@ Resources:
       Environment:
         Variables:
           AUDIO_BUCKET: !Ref AudioBucket
+          TELEGRAM_TOKEN: !Ref TelegramToken
       Role: !GetAtt ApiRole.Arn
       Timeout: 30
       MemorySize: 256
@@ -370,7 +371,7 @@ Resources:
     Properties:
       RestApiId: !Ref BotApi
       ParentId: !GetAtt BotApi.RootResourceId
-      PathPart: collection
+      PathPart: app
 
   WebApiProxyResource:
     Type: AWS::ApiGateway::Resource

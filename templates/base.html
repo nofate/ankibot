@@ -91,17 +91,86 @@
         .audio-btn:hover {
             background-color: #bbdefb;
         }
+        .htmx-indicator {
+            opacity: 0;
+            transition: opacity 500ms ease-in;
+        }
+        .htmx-request .htmx-indicator {
+            opacity: 1;
+            background-color: #e3f2fd;
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            text-align: center;
+        }
+        .action-btn {
+            background-color: #e3f2fd;
+            color: #1565c0;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            margin: 1rem 0;
+        }
+        .action-btn:hover {
+            background-color: #bbdefb;
+        }
     </style>
+    <script>
+        // Initialize Telegram WebApp and add initData to HTMX requests
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if Telegram WebApp is available
+            if (window.Telegram && window.Telegram.WebApp) {
+                const tg = window.Telegram.WebApp;
+                
+                // Initialize the WebApp
+                tg.expand();
+                tg.ready();
+                
+                // Get user info from initDataUnsafe
+                const userInfo = document.getElementById('telegram-user-info');
+                if (userInfo && tg.initDataUnsafe && tg.initDataUnsafe.user) {
+                    const user = tg.initDataUnsafe.user;
+                    userInfo.innerHTML = `
+                        <p><strong>Hello, ${user.first_name || 'User'}!</strong></p>
+                        <p>Username: @${user.username || 'unknown'}</p>
+                        <p>User ID: ${user.id || 'unknown'}</p>
+                    `;
+                    userInfo.style.display = 'block';
+                    
+                    console.log('Telegram user info:', user);
+                } else if (userInfo) {
+                    userInfo.innerHTML = '<p>No user information available</p>';
+                    userInfo.style.display = 'block';
+                    
+                    console.log('No user information in initDataUnsafe:', tg.initDataUnsafe);
+                }
+                
+                // Use htmx:configRequest event to add initData to all HTMX requests
+                document.body.addEventListener('htmx:configRequest', function(evt) {
+                    // Add Telegram initData to all HTMX requests
+                    if (tg.initData) {
+                        evt.detail.parameters['initData'] = tg.initData;
+                        console.log('Added initData to HTMX request');
+                    } else {
+                        console.log('No initData available for HTMX request');
+                    }
+                });
+            } else {
+                console.log('Telegram WebApp not available');
+            }
+        });
+    </script>
     {% block head %}{% endblock %}
 </head>
-<body>
-    <div class="header">
-        <h1>AnkiBot</h1>
-        <nav>
-            <a href="{{ stage_name }}/collection">Collection</a>
-        </nav>
+    <body>
+    <!-- Telegram user info display -->
+    <div id="telegram-user-info" class="user-greeting" style="display: none; margin-bottom: 1rem; padding: 0.75rem; background-color: #e3f2fd; border-radius: 8px; border-left: 4px solid #1565c0;">
+        <p>Loading user information...</p>
     </div>
-    
+
     <main>
         {% block content %}{% endblock %}
     </main>

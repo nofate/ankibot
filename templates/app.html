@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}AnkiBot Mini App{% endblock %}
+
+{% block content %}
+<div class="app-container">
+    <h2>AnkiBot Mini App</h2>
+    
+    <div class="app-content">
+        <!-- Mini App content will go here -->
+        <p>Welcome to the AnkiBot Mini App!</p>
+        
+        <!-- Placeholder for future functionality -->
+        <div class="app-actions">
+            <button id="show-collection-btn" class="action-btn"
+                    hx-get="{{ stage_name }}/app/collection"
+                    hx-trigger="click"
+                    hx-target="#collection-container"
+                    hx-swap="innerHTML"
+                    hx-indicator="#loading-indicator">
+                View Collection
+            </button>
+        </div>
+        
+        <!-- Loading indicator -->
+        <div id="loading-indicator" class="htmx-indicator" style="display:none;">
+            Loading your collection...
+        </div>
+        
+        <!-- Container for collection data -->
+        <div id="collection-container"></div>
+    </div>
+</div>
+{% endblock %} 

@@ -1,47 +1,3 @@
-{% extends "base.html" %}
-
-{% block title %}Your Collection - AnkiBot{% endblock %}
-
-{% block content %}
-<!-- Telegram user info display -->
-<div id="telegram-user-info" class="user-greeting" style="display: none; margin-bottom: 1rem; padding: 0.75rem; background-color: #e3f2fd; border-radius: 8px; border-left: 4px solid #1565c0;">
-    <p>Loading user information...</p>
-</div>
-
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Check if Telegram WebApp is available
-        if (window.Telegram && window.Telegram.WebApp) {
-            const tg = window.Telegram.WebApp;
-            
-            // Initialize the WebApp
-            tg.expand();
-            tg.ready();
-            
-            // Get user info from initDataUnsafe
-            const userInfo = document.getElementById('telegram-user-info');
-            if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
-                const user = tg.initDataUnsafe.user;
-                userInfo.innerHTML = `
-                    <p><strong>Hello, ${user.first_name || 'User'}!</strong></p>
-                    <p>Username: @${user.username || 'unknown'}</p>
-                    <p>User ID: ${user.id || 'unknown'}</p>
-                `;
-                userInfo.style.display = 'block';
-                
-                console.log('Telegram user info:', user);
-            } else {
-                userInfo.innerHTML = '<p>No user information available</p>';
-                userInfo.style.display = 'block';
-                
-                console.log('No user information in initDataUnsafe:', tg.initDataUnsafe);
-            }
-        } else {
-            console.log('Telegram WebApp not available');
-        }
-    });
-</script>
-
 <div class="collection-container">
     <h2>Your Collection</h2>
     
@@ -83,4 +39,3 @@
         </div>
     {% endif %}
 </div>
-{% endblock %} 
