@@ -111,9 +111,15 @@ def session_middleware(
     """
     # Get query parameters
     query_params = event.get('queryStringParameters', {}) or {}
+    logger.debug(f"Query parameters: {query_params}")
     
     # Check for Telegram initData
     init_data = query_params.get('initData')
+    if init_data:
+        logger.debug(f"Found initData: {init_data[:20]}...")  # Log first 20 chars for privacy
+    else:
+        logger.warning("No initData found in query parameters")
+    
     is_valid = False
     user_data = None
     user_id = None
@@ -125,16 +131,23 @@ def session_middleware(
             logger.info(f"Valid Telegram initData received for user: {user_id}")
         else:
             logger.warning("Invalid Telegram initData received")
+            if user_data:
+                logger.debug(f"User data present but validation failed: {user_data}")
     
     # Store authentication results in the event context
     if 'requestContext' not in event:
         event['requestContext'] = {}
+        logger.debug("Created requestContext in event")
+        
     if 'authorizer' not in event['requestContext']:
         event['requestContext']['authorizer'] = {}
+        logger.debug("Created authorizer in requestContext")
         
     event['requestContext']['authorizer']['is_authenticated'] = is_valid
     event['requestContext']['authorizer']['user_data'] = user_data
     event['requestContext']['authorizer']['user_id'] = user_id
+    logger.debug(f"Updated authorizer with is_authenticated={is_valid}, user_id={user_id}")
     
     # Call the handler with the modified event
+    logger.debug("Calling handler with modified event")
     return handler(event, context) 

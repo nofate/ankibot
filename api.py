@@ -16,6 +16,7 @@ from aws_lambda_powertools.utilities.typing import LambdaContext
 from aws_lambda_powertools.logging import correlation_paths
 from aws_lambda_powertools.utilities.data_classes import APIGatewayProxyEvent
 from tg_tools import session_middleware
+from typing import Tuple, Dict, Any, Optional
 
 
 # Initialize Jinja2 environment
@@ -30,6 +31,36 @@ logger = Logger()
 app = APIGatewayRestResolver()
 # Initialize global context dictionary
 context_dict = {'stage_name': ''}
+
+# Authentication helper
+def auth(require_auth: bool = True) -> Tuple[bool, Optional[str], Optional[Dict[str, Any]]]:
+    """
+    Extract authentication information from the current request
+    
+    Args:
+        require_auth: If True, raise BadRequestError when authentication fails
+        
+    Returns:
+        Tuple of (is_authenticated, user_id, user_data)
+    """
+    # Access the authorizer data directly from the event
+    event = app.current_event.raw_event
+    request_context = event.get('requestContext', {})
+    authorizer = request_context.get('authorizer', {})
+    
+    # Extract authentication data
+    is_authenticated = authorizer.get('is_authenticated', False)
+    user_id = authorizer.get('user_id')
+    user_data = authorizer.get('user_data')
+    
+    logger.debug(f"Auth check: is_authenticated={is_authenticated}, user_id={user_id}")
+    
+    # Require authentication if specified
+    if require_auth and (not is_authenticated or not user_id):
+        logger.warning(f"Authentication required but failed: is_authenticated={is_authenticated}, user_id={user_id}")
+        raise BadRequestError("Authentication required")
+        
+    return is_authenticated, user_id, user_data
 
 # HTML response helper
 def html_response(body, status_code=200):
@@ -48,9 +79,8 @@ def get_app():
         # Get stage name from the global context
         stage_name = context_dict.get('stage_name', '')
         
-        # Get user data from the request context
-        authorizer = app.current_event.request_context.get('authorizer', {})
-        user_data = authorizer.get('user_data')
+        # Get authentication info (don't require auth for initial app load)
+        _, _, user_data = auth(require_auth=False)
         
         # Render template
         template = jinja_env.get_template('app.html')
@@ -65,13 +95,9 @@ def get_app():
 def get_collection():
     """Get all language entries and render them as HTML"""
     try:
-        # Get user data from the request context
-        authorizer = app.current_event.request_context.get('authorizer', {})
-        is_authenticated = authorizer.get('is_authenticated', False)
-        user_data = authorizer.get('user_data')
-        user_id = authorizer.get('user_id')
-        if not is_authenticated or not user_id:
-            raise BadRequestError("Authentication required")
+        # Get authentication info (require auth for viewing collection)
+        _, user_id, user_data = auth(require_auth=True)
+        logger.info(f"Authenticated user {user_id} viewing collection")
 
         # Get all entries from DynamoDB
         entries = LanguageEntry.get_table().scan()
@@ -91,21 +117,28 @@ def get_collection():
             user_data=user_data
         ))
     except Exception as e:
+        logger.exception(f"Error in get_collection: {str(e)}")
         error_handler(e)  # This will raise an InternalServerError
 
 @app.delete("/app/collection/<item_id>")
 def delete_entry(item_id):
     """Delete a language entry"""
     try:
-        # Get user data from the request context
-        authorizer = app.current_event.request_context.get('authorizer', {})
-        is_authenticated = authorizer.get('is_authenticated', False)
-        user_id = authorizer.get('user_id')
+        # Get authentication info (require auth for deleting entries)
+        _, user_id, _ = auth(require_auth=True)
+        logger.info(f"Authenticated user {user_id} deleting entry {item_id}")
         
-        # Check authentication
-        if not is_authenticated or not user_id:
-            logger.warning("Unauthenticated delete attempt")
-            raise BadRequestError("Authentication required")
+        # Get the entry to verify ownership
+        entry = LanguageEntry.get_table().get_item(Key={'id': item_id}).get('Item')
+        
+        if not entry:
+            logger.warning(f"Entry {item_id} not found")
+            raise NotFoundError(f"Entry {item_id} not found")
+        
+        # Verify the user owns this entry
+        if entry.get('user_id') != user_id:
+            logger.warning(f"User {user_id} attempted to delete entry {item_id} owned by {entry.get('user_id')}")
+            raise BadRequestError("You don't have permission to delete this entry")
         
         # Delete the entry from DynamoDB
         LanguageEntry.get_table().delete_item(
