@@ -10,112 +10,225 @@
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <!-- Simple CSS for styling -->
     <style>
+        /* Telegram Mini App styles following Telegram UI guidelines */
+        :root {
+            /* Default light theme variables */
+            --tg-theme-bg-color: #ffffff;
+            --tg-theme-text-color: #222222;
+            --tg-theme-hint-color: #999999;
+            --tg-theme-link-color: #2678b6;
+            --tg-theme-button-color: #2678b6;
+            --tg-theme-button-text-color: #ffffff;
+            --tg-theme-secondary-bg-color: #f0f0f0;
+            
+            /* Custom variables */
+            --tg-theme-error-color: #e53935;
+            --tg-theme-success-color: #43a047;
+            --tg-theme-card-bg-color: #f5f5f5;
+            --tg-theme-card-border-color: #e0e0e0;
+            --tg-theme-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+            --tg-theme-border-radius: 8px;
+            --tg-theme-spacing: 12px;
+        }
+        
         body {
-            font-family: 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            line-height: 1.6;
-            color: #333;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.5;
+            color: var(--tg-theme-text-color);
+            background-color: var(--tg-theme-bg-color);
+            margin: 0;
+            padding: var(--tg-theme-spacing);
             max-width: 800px;
             margin: 0 auto;
-            padding: 1rem;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
+        
+        h1, h2, h3, h4, h5, h6 {
+            color: var(--tg-theme-text-color);
+            margin-top: 0;
+            margin-bottom: var(--tg-theme-spacing);
+        }
+        
+        p {
+            margin-top: 0;
+            margin-bottom: var(--tg-theme-spacing);
+        }
+        
+        a {
+            color: var(--tg-theme-link-color);
+            text-decoration: none;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+        
+        /* Header styles */
         .header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 2rem;
-            padding-bottom: 1rem;
-            border-bottom: 1px solid #eee;
+            margin-bottom: calc(var(--tg-theme-spacing) * 2);
+            padding-bottom: var(--tg-theme-spacing);
+            border-bottom: 1px solid var(--tg-theme-card-border-color);
         }
+        
+        /* Entry card styles */
         .entry {
-            background-color: #f9f9f9;
-            border-radius: 8px;
-            padding: 1rem;
-            margin-bottom: 1rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            background-color: var(--tg-theme-secondary-bg-color);
+            border-radius: var(--tg-theme-border-radius);
+            padding: var(--tg-theme-spacing);
+            margin-bottom: var(--tg-theme-spacing);
+            box-shadow: var(--tg-theme-card-shadow);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
+        
         .entry:hover {
-            background-color: #f0f0f0;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         }
+        
         .word {
-            font-weight: bold;
-            color: #5d8aa8;
-            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--tg-theme-button-color);
+            font-size: 1.1rem;
+            margin-bottom: calc(var(--tg-theme-spacing) / 2);
         }
+        
         .definition {
-            color: #666;
+            color: var(--tg-theme-text-color);
             font-style: italic;
-            margin: 0.5rem 0;
+            margin: calc(var(--tg-theme-spacing) / 2) 0;
         }
+        
         .translation {
-            color: #d8bfd8;
-            font-weight: bold;
+            color: var(--tg-theme-hint-color);
+            font-weight: 500;
         }
+        
+        /* Message styles */
         .empty-message {
             text-align: center;
-            padding: 2rem;
-            color: #999;
+            padding: calc(var(--tg-theme-spacing) * 2);
+            color: var(--tg-theme-hint-color);
+            background-color: var(--tg-theme-secondary-bg-color);
+            border-radius: var(--tg-theme-border-radius);
+            margin: var(--tg-theme-spacing) 0;
         }
+        
         .error {
-            background-color: #ffebee;
-            color: #c62828;
-            padding: 1rem;
-            border-radius: 8px;
-            margin: 1rem 0;
+            background-color: rgba(229, 57, 53, 0.1);
+            color: var(--tg-theme-error-color);
+            padding: var(--tg-theme-spacing);
+            border-radius: var(--tg-theme-border-radius);
+            margin: var(--tg-theme-spacing) 0;
+            border-left: 4px solid var(--tg-theme-error-color);
         }
+        
         .success-message {
-            background-color: #e8f5e9;
-            color: #2e7d32;
-            padding: 1rem;
-            border-radius: 8px;
-            margin: 1rem 0;
+            background-color: rgba(67, 160, 71, 0.1);
+            color: var(--tg-theme-success-color);
+            padding: var(--tg-theme-spacing);
+            border-radius: var(--tg-theme-border-radius);
+            margin: var(--tg-theme-spacing) 0;
+            border-left: 4px solid var(--tg-theme-success-color);
         }
-        .actions button {
-            padding: 0.5rem 1rem;
+        
+        /* Button styles */
+        button {
+            font-family: inherit;
+            font-size: 14px;
             border: none;
-            border-radius: 4px;
-            margin-right: 0.5rem;
+            border-radius: var(--tg-theme-border-radius);
             cursor: pointer;
-            font-size: 0.9rem;
+            transition: background-color 0.2s ease, transform 0.1s ease;
         }
+        
+        button:active {
+            transform: scale(0.98);
+        }
+        
+        .actions button {
+            padding: 8px 16px;
+            margin-right: 8px;
+            font-weight: 500;
+        }
+        
         .delete-btn {
-            background-color: #ffebee;
-            color: #c62828;
+            background-color: rgba(229, 57, 53, 0.1);
+            color: var(--tg-theme-error-color);
         }
+        
         .delete-btn:hover {
-            background-color: #ffcdd2;
+            background-color: rgba(229, 57, 53, 0.2);
         }
+        
         .audio-btn {
-            background-color: #e3f2fd;
-            color: #1565c0;
+            background-color: rgba(38, 120, 182, 0.1);
+            color: var(--tg-theme-button-color);
         }
+        
         .audio-btn:hover {
-            background-color: #bbdefb;
+            background-color: rgba(38, 120, 182, 0.2);
         }
-        .htmx-indicator {
-            opacity: 0;
-            transition: opacity 500ms ease-in;
-        }
-        .htmx-request .htmx-indicator {
-            opacity: 1;
-            background-color: #e3f2fd;
-            padding: 0.75rem;
-            border-radius: 8px;
-            margin: 1rem 0;
+        
+        .action-btn {
+            background-color: var(--tg-theme-button-color);
+            color: var(--tg-theme-button-text-color);
+            padding: 12px 20px;
+            font-weight: 500;
+            margin: var(--tg-theme-spacing) 0;
             text-align: center;
         }
-        .action-btn {
-            background-color: #e3f2fd;
-            color: #1565c0;
-            padding: 0.75rem 1.5rem;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 1rem;
-            font-weight: 500;
-            margin: 1rem 0;
-        }
+        
         .action-btn:hover {
-            background-color: #bbdefb;
+            opacity: 0.9;
+        }
+        
+        /* HTMX indicator styles */
+        .htmx-indicator {
+            opacity: 0;
+            transition: opacity 300ms ease-in;
+        }
+        
+        .htmx-request .htmx-indicator {
+            opacity: 1;
+            background-color: var(--tg-theme-secondary-bg-color);
+            padding: var(--tg-theme-spacing);
+            border-radius: var(--tg-theme-border-radius);
+            margin: var(--tg-theme-spacing) 0;
+            text-align: center;
+            color: var(--tg-theme-hint-color);
+        }
+        
+        /* User greeting styles */
+        .user-greeting {
+            background-color: var(--tg-theme-secondary-bg-color);
+            border-radius: var(--tg-theme-border-radius);
+            padding: var(--tg-theme-spacing);
+            margin-bottom: var(--tg-theme-spacing);
+            border-left: 4px solid var(--tg-theme-button-color);
+        }
+        
+        /* App container styles */
+        .app-container {
+            margin-bottom: calc(var(--tg-theme-spacing) * 2);
+        }
+        
+        /* Collection container styles */
+        .collection-container {
+            margin-top: var(--tg-theme-spacing);
+        }
+        
+        /* Footer styles */
+        footer {
+            margin-top: calc(var(--tg-theme-spacing) * 2);
+            text-align: center;
+            color: var(--tg-theme-hint-color);
+            font-size: 0.8rem;
+            padding-top: var(--tg-theme-spacing);
+            border-top: 1px solid var(--tg-theme-card-border-color);
         }
     </style>
     <script>
@@ -128,6 +241,38 @@
                 // Initialize the WebApp
                 tg.expand();
                 tg.ready();
+                
+                // Apply Telegram theme colors
+                const root = document.documentElement;
+                
+                // Set CSS variables based on Telegram theme
+                if (tg.colorScheme === 'dark') {
+                    // Override default light theme with dark theme values
+                    root.style.setProperty('--tg-theme-bg-color', tg.themeParams.bg_color || '#212121');
+                    root.style.setProperty('--tg-theme-text-color', tg.themeParams.text_color || '#ffffff');
+                    root.style.setProperty('--tg-theme-hint-color', tg.themeParams.hint_color || '#aaaaaa');
+                    root.style.setProperty('--tg-theme-link-color', tg.themeParams.link_color || '#8ab4f8');
+                    root.style.setProperty('--tg-theme-button-color', tg.themeParams.button_color || '#8ab4f8');
+                    root.style.setProperty('--tg-theme-button-text-color', tg.themeParams.button_text_color || '#ffffff');
+                    root.style.setProperty('--tg-theme-secondary-bg-color', tg.themeParams.secondary_bg_color || '#333333');
+                    
+                    // Custom variables for dark theme
+                    root.style.setProperty('--tg-theme-card-bg-color', '#333333');
+                    root.style.setProperty('--tg-theme-card-border-color', '#444444');
+                    root.style.setProperty('--tg-theme-card-shadow', '0 1px 3px rgba(0, 0, 0, 0.3)');
+                } else {
+                    // Light theme (default)
+                    root.style.setProperty('--tg-theme-bg-color', tg.themeParams.bg_color || '#ffffff');
+                    root.style.setProperty('--tg-theme-text-color', tg.themeParams.text_color || '#222222');
+                    root.style.setProperty('--tg-theme-hint-color', tg.themeParams.hint_color || '#999999');
+                    root.style.setProperty('--tg-theme-link-color', tg.themeParams.link_color || '#2678b6');
+                    root.style.setProperty('--tg-theme-button-color', tg.themeParams.button_color || '#2678b6');
+                    root.style.setProperty('--tg-theme-button-text-color', tg.themeParams.button_text_color || '#ffffff');
+                    root.style.setProperty('--tg-theme-secondary-bg-color', tg.themeParams.secondary_bg_color || '#f0f0f0');
+                }
+                
+                // Log theme information
+                console.log('Telegram theme applied:', tg.colorScheme, tg.themeParams);
                 
                 // Get user info from initDataUnsafe
                 const userInfo = document.getElementById('telegram-user-info');
@@ -160,6 +305,13 @@
                 });
             } else {
                 console.log('Telegram WebApp not available');
+                
+                // Fallback for testing outside of Telegram
+                const userInfo = document.getElementById('telegram-user-info');
+                if (userInfo) {
+                    userInfo.innerHTML = '<p><strong>Hello, Tester!</strong></p><p>You are viewing this outside of Telegram</p>';
+                    userInfo.style.display = 'block';
+                }
             }
         });
     </script>
@@ -167,7 +319,7 @@
 </head>
     <body>
     <!-- Telegram user info display -->
-    <div id="telegram-user-info" class="user-greeting" style="display: none; margin-bottom: 1rem; padding: 0.75rem; background-color: #e3f2fd; border-radius: 8px; border-left: 4px solid #1565c0;">
+    <div id="telegram-user-info" class="user-greeting" style="display: none;">
         <p>Loading user information...</p>
     </div>
 
@@ -175,7 +327,7 @@
         {% block content %}{% endblock %}
     </main>
     
-    <footer style="margin-top: 2rem; text-align: center; color: #999; font-size: 0.8rem;">
+    <footer>
         <p>AnkiBot &copy; 2025</p>
     </footer>
 </body>
