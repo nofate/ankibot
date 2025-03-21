@@ -109,15 +109,18 @@ def session_middleware(
     Returns:
         The result of the handler function
     """
-    # Get query parameters
-    query_params = event.get('queryStringParameters', {}) or {}
-    logger.debug(f"Query parameters: {query_params}")
+    # Get Authorization header
+    headers = event.get('headers', {}) or {}
+    auth_header = headers.get('Authorization') or headers.get('authorization', '')
+    logger.debug(f"Authorization header: {auth_header[:20]}..." if auth_header else "No Authorization header")
     
-    # Check for Telegram initData
-    init_data = query_params.get('initData')
+    # Extract initData from Authorization header
+    init_data = None
+    if auth_header.startswith('Telegram '):
+        init_data = auth_header[9:]  # Remove 'Telegram ' prefix
+        logger.debug(f"Found initData in Authorization header: {init_data[:20]}...")
+
     if init_data:
-        logger.debug(f"Found initData: {init_data[:20]}...")  # Log first 20 chars for privacy
-    else:
         logger.warning("No initData found in query parameters")
     
     is_valid = False

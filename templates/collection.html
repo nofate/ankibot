@@ -19,16 +19,8 @@
                             class="delete-btn">
                             Delete
                         </button>
-                        <button 
-                            hx-get="{{ stage_name }}/collection/{{ item.id }}/audio" 
-                            hx-target="#audio-{{ item.id }}"
-                            hx-swap="innerHTML"
-                            hx-trigger="click"
-                            class="audio-btn">
-                            Play Audio
-                        </button>
-                        <div id="audio-{{ item.id }}"></div>
                     </div>
+                    <div id="delete-indicator-{{ item.id }}" class="htmx-indicator">Deleting...</div>
                 </div>
             {% endfor %}
         </div>

@@ -125,7 +125,6 @@
             margin: var(--tg-theme-spacing) 0;
             border-left: 4px solid var(--tg-theme-error-color);
         }
-        
         .success-message {
             background-color: rgba(67, 160, 71, 0.1);
             color: var(--tg-theme-success-color);
@@ -297,7 +296,8 @@
                 document.body.addEventListener('htmx:configRequest', function(evt) {
                     // Add Telegram initData to all HTMX requests
                     if (tg.initData) {
-                        evt.detail.parameters['initData'] = tg.initData;
+                        // Add initData as an Authorization header instead of a query parameter
+                        evt.detail.headers['Authorization'] = `Telegram ${tg.initData}`;
                         console.log('Added initData to HTMX request');
                     } else {
                         console.log('No initData available for HTMX request');

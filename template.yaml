@@ -397,7 +397,7 @@ Resources:
     Properties:
       RestApiId: !Ref BotApi
       ResourceId: !Ref WebApiResource
-      HttpMethod: GET
+      HttpMethod: ANY
       AuthorizationType: NONE
       Integration:
         Type: AWS_PROXY

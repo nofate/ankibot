@@ -16,7 +16,6 @@ from aws_lambda_powertools.utilities.typing import LambdaContext
 from aws_lambda_powertools.logging import correlation_paths
 from aws_lambda_powertools.utilities.data_classes import APIGatewayProxyEvent
 from tg_tools import session_middleware
-from typing import Tuple, Dict, Any, Optional
 
 
 # Initialize Jinja2 environment
@@ -33,7 +32,7 @@ app = APIGatewayRestResolver()
 context_dict = {'stage_name': ''}
 
 # Authentication helper
-def auth(require_auth: bool = True) -> Tuple[bool, Optional[str], Optional[Dict[str, Any]]]:
+def auth(require_auth: bool = True):
     """
     Extract authentication information from the current request
     
@@ -134,11 +133,6 @@ def delete_entry(item_id):
         if not entry:
             logger.warning(f"Entry {item_id} not found")
             raise NotFoundError(f"Entry {item_id} not found")
-        
-        # Verify the user owns this entry
-        if entry.get('user_id') != user_id:
-            logger.warning(f"User {user_id} attempted to delete entry {item_id} owned by {entry.get('user_id')}")
-            raise BadRequestError("You don't have permission to delete this entry")
         
         # Delete the entry from DynamoDB
         LanguageEntry.get_table().delete_item(
